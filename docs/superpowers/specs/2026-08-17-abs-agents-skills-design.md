@@ -18,8 +18,10 @@ a **skill**: a model-discovered SKILL.md that triggers automatically when a user
 integrate with the platform. This repo ships that skill, following the same pattern Stripe,
 Figma, Supabase, and Auth0 use (skills bundle + per-agent install paths).
 
-This MVP is **skills-only**. It deliberately ships no MCP connection config; MCP-side
-changes are follow-ups owned by Cristhian (see "Follow-ups" below).
+The MVP ships the skill **plus the client-side MCP connection config** (`.mcp.json`), so
+a Claude Code plugin install delivers tools + skill in one step — the full vendor-bundle
+pattern. Server-side changes (rebranding the MCP itself) remain follow-ups owned by
+Cristhian (see "Follow-ups" below).
 
 ## Goals
 
@@ -33,8 +35,6 @@ changes are follow-ups owned by Cristhian (see "Follow-ups" below).
 
 ## Non-goals (this iteration)
 
-- Shipping `.mcp.json` / auto-configuring the MCP connection (follow-up, after the MCP
-  rebrand).
 - Cursor/Codex native plugin manifests, official directory submissions, CI, version
   automation.
 - A troubleshooting skill, or per-phase skill splitting.
@@ -47,7 +47,7 @@ changes are follow-ups owned by Cristhian (see "Follow-ups" below).
 | Repo | `Avocado-Blockchain-Services/abs-agents-skills` (public) |
 | Skill | `perseaai-agents-setup` |
 | Plugin (Claude Code) | `perseaai-agents` |
-| Recommended MCP server key (future) | `perseaai-agents` |
+| MCP server key (shipped in `.mcp.json`) | `perseaai-agents` |
 
 Rationale: "logcore" names the logging microservice, not the platform. The customer-facing
 brand for the platform integration is **perseaai-agents**. Inside skill content, "logcore"
@@ -59,8 +59,9 @@ intake endpoints).
 ```
 abs-agents-skills/
 ├── .claude-plugin/
-│   ├── plugin.json          # name: perseaai-agents, version 0.1.0, skills-only
+│   ├── plugin.json          # name: perseaai-agents, version 0.1.0
 │   └── marketplace.json     # lists this repo's plugin → repo doubles as its own marketplace
+├── .mcp.json                # server key perseaai-agents → dev /mcp/lite endpoint, OAuth
 ├── skills/
 │   └── perseaai-agents-setup/
 │       └── SKILL.md
@@ -138,6 +139,26 @@ Structure:
 `.claude-plugin/marketplace.json` lists the single plugin with source `"./"` so the repo
 is its own marketplace — no separate marketplace repo, no infrastructure.
 
+`.mcp.json` (repo root, picked up by the plugin so Claude Code installs configure the
+server automatically):
+
+```json
+{
+  "mcpServers": {
+    "perseaai-agents": {
+      "type": "http",
+      "url": "https://agents-api-dev-352942961463.us-east4.run.app/mcp/lite/mcp",
+      "oauth": {}
+    }
+  }
+}
+```
+
+No pinned OAuth callback port — that is machine-local. The dev Cloud Run URL is a known
+temporary; swapping to a stable domain later is a one-line change. The key
+`perseaai-agents` means plugin users see tools as `mcp__perseaai-agents__*`; the skill
+still references bare tool names so it works for manually-configured users under any key.
+
 ## README
 
 Three install sections plus a stage notice:
@@ -145,17 +166,19 @@ Three install sections plus a stage notice:
 1. **Claude Code** — the two `/plugin` commands.
 2. **Other agents** — `npx skills add Avocado-Blockchain-Services/abs-agents-skills`
    (with `--agent opencode`, `-g`, `--copy` examples and where files land per scope).
-3. **Connecting the MCP server** — documentation-only manual config snippet (current dev
-   Cloud Run URL, `type: http`, OAuth), explicitly marked **temporary** until the MCP
-   rebrand lands; nothing is auto-installed by this repo.
+3. **Connecting the MCP server** — Claude Code plugin users get it automatically via the
+   bundled `.mcp.json`; for other agents, a copy-paste config snippet per agent
+   (opencode.json, Cursor, Codex) using the same `perseaai-agents` key and dev URL,
+   marked **temporary** until the stable domain lands.
 4. Early-stage notice: dev endpoint, URL and server naming will change.
 
 ## Verification (manual, no CI)
 
 1. `npx skills add` this repo with `--agent opencode` and `--agent claude-code`; confirm
    the skill appears in each agent's skill list (project and `-g` scopes).
-2. Fresh Claude Code session: add marketplace, install plugin, confirm the skill loads
-   and triggers on a natural request ("connect this repo to the platform").
+2. Fresh Claude Code session: add marketplace, install plugin, confirm the OAuth flow
+   completes, tools appear as `mcp__perseaai-agents__*`, and the skill triggers on a
+   natural request ("connect this repo to the platform").
 3. One live onboarding run against a scratch repo (reuse the AMPS docs-scribe-test harness
    pattern) driving the skill end-to-end through at least Phases 1–3 against the dev MCP.
 
@@ -165,15 +188,16 @@ Three install sections plus a stage notice:
    name, the server `instructions` field (currently one line — should summarize the
    onboarding flow), and the recommended client registration key. "logcore" remains the
    name of the logging microservice only.
-2. **After the rebrand:** add `.mcp.json` to this repo's plugin so Claude Code users get
-   the MCP connection + skill in a single install (the full vendor-bundle pattern).
+2. **After the rebrand:** update this repo's `.mcp.json` if the endpoint or recommended
+   key changes (config already ships here; only values may move).
 3. **On merge of `feat/mcp-service-id-emitter`:** re-sync the skill body with the new
    contract (language-agnostic wire contract, `service_id` in stdout transport, Cloud Run
    label promotion) in one coordinated pass with the server prompt.
 
 ## Decisions log
 
-- Skills-only MVP; MCP config excluded by explicit decision (Marco, 2026-08-17).
+- MVP was briefly scoped skills-only; reversed same day — `.mcp.json` ships in the
+  bundle (Marco, 2026-08-17). Server-side MCP changes remain out of scope here.
 - Content based on `development` contract, not the in-flight branch.
 - Hand-authored skill (Approach A) over generated-from-prompt (B) or thin wrapper (C):
   duplication accepted for MVP; sync is manual with a marker comment.

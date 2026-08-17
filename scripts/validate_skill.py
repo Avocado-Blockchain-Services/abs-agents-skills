@@ -18,9 +18,12 @@ def main(path):
         fail("no frontmatter block delimited by --- at start of file")
     try:
         import yaml
-        fm = yaml.safe_load(m.group(1))
     except ImportError:
         fail("pyyaml not installed (pip install pyyaml)")
+    try:
+        fm = yaml.safe_load(m.group(1))
+    except yaml.YAMLError as e:
+        fail(f"invalid YAML in frontmatter: {e}")
     if not isinstance(fm, dict):
         fail("frontmatter is not a mapping")
     extra = set(fm) - ALLOWED_KEYS
@@ -40,4 +43,7 @@ def main(path):
     print(f"OK: {path}")
 
 if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("usage: validate_skill.py path/to/SKILL.md")
+        sys.exit(2)
     main(sys.argv[1])

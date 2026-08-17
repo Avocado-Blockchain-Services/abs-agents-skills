@@ -27,12 +27,14 @@ This skill drives tools served by the Persea AI agents platform MCP server:
 `check_github_connection`, `get_github_auth_url`, `list_organizations`,
 `list_projects`, `create_project`, `add_service`, `get_service_config`,
 `get_logging_snippet`, `get_infra_setup`, `register_writer_identity`,
-`validate_setup`, `test_connection`, and `register_pr`.
+`validate_setup`, and `register_pr`.
 
 If these tools are not available in the session, the MCP server is not
 connected. Stop and point the user to the installation instructions in this
 plugin's README (https://github.com/Avocado-Blockchain-Services/abs-agents-skills)
 before continuing.
+
+The optional tool `test_connection` may also be present; Phase 5 uses it only when available.
 
 ## Phase 1: GitHub Connection
 

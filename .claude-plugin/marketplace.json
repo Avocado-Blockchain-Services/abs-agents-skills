@@ -1,0 +1,15 @@
+{
+  "name": "abs-agents-skills",
+  "description": "Agent skills for the Persea AI agents platform by Avocado Blockchain Services",
+  "owner": {
+    "name": "Avocado Blockchain Services",
+    "email": "support@avocadoblock.com"
+  },
+  "plugins": [
+    {
+      "name": "perseaai-agents",
+      "source": "./",
+      "description": "Onboard projects onto the Persea AI agents platform: connect GitHub, register services, and integrate logcore structured logging."
+    }
+  ]
+}

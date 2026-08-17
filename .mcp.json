@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "perseaai-agents": {
+      "type": "http",
+      "url": "https://agents-api-dev-352942961463.us-east4.run.app/mcp/lite/mcp",
+      "oauth": {}
+    }
+  }
+}

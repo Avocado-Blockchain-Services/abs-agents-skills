@@ -148,13 +148,15 @@ server automatically):
     "perseaai-agents": {
       "type": "http",
       "url": "https://agents-api-dev-352942961463.us-east4.run.app/mcp/lite/mcp",
-      "oauth": {}
+      "oauth": { "callbackPort": 29352 }
     }
   }
 }
 ```
 
-No pinned OAuth callback port — that is machine-local. The dev Cloud Run URL is a known
+The OAuth callback port MUST be pinned to 29352: the Auth0 MCP client pre-registers
+exactly `http://localhost:29352/callback` (abs-agents-terraform `auth0-mcp-dev.tf`), so an
+ephemeral port fails with "Callback URL mismatch". The dev Cloud Run URL is a known
 temporary; swapping to a stable domain later is a one-line change. The key
 `perseaai-agents` means plugin users see tools as `mcp__perseaai-agents__*`; the skill
 still references bare tool names so it works for manually-configured users under any key.

@@ -10,7 +10,7 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.3.0"
+  version: "0.3.1"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
@@ -164,9 +164,23 @@ when available.
        boundary at the entry point. A boundary that wraps nothing and a
        handler nobody installs report nothing, no matter how correct the
        module is.
-     - Entry fields stay FLAT: `service`, `env`, `source_project`, `insert_id`
-       are top-level. This path never touches Cloud Logging, so nothing is
-       promoted.
+     - Entry fields stay FLAT: `service`, `env`, `insert_id` are top-level.
+       This path never touches Cloud Logging, so nothing is promoted.
+     - **The entry is not the request body.** POST an envelope to
+       `<LOGCORE_URL>/v1/logs` with the `x-api-key` header:
+
+       ```json
+       { "schema_version": 1, "entries": [ /* one or more entries */ ] }
+       ```
+
+       A bare `{"entries": [...]}` is rejected with **422** for a missing
+       `schema_version`. `wire_shape` and `golden_entry` describe ONE ENTRY —
+       see `transport_info.request_envelope` for the wrapper.
+     - **Omit `source_project` for a browser app.** It runs in no GCP project,
+       and the schema validates the field as a GCP project id whenever it is
+       present — so sending `""` is a **422**, while leaving it out is accepted.
+       `get_service_config` returns `null` for it on a frontend: pass that
+       through as absent, do not coerce it to an empty string.
    - For backends (stdout — the sink can only identify the sender by
      service_id):
      - A structured logger module (JSON to stdout — Cloud Logging captures it)

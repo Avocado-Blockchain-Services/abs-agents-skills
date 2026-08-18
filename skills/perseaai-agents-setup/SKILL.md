@@ -310,8 +310,27 @@ Skip this phase for frontend services (http transport).
 1. Ask for the developer's GCP Project ID.
 2. Call `get_infra_setup` with the service id and GCP project id to get the
    gcloud commands.
-3. Tell the developer to run the gcloud command in their terminal.
-4. Ask them to paste the `writerIdentity` from the output.
+3. **Check whether the sink already exists before asking the developer for
+   anything.** Run this yourself — it is a read, and it costs one call:
+
+   ```bash
+   gcloud logging sinks describe errors-to-logcore \
+     --project=<gcp_project_id> --format="value(writerIdentity)"
+   ```
+
+   A project onboarded before — or reset between demos — still has its sink:
+   what gets lost is the platform-side registration, not the GCP resource. If
+   this prints a service account you already have the `writerIdentity`, so skip
+   to step 5. Sending the developer to create a sink that exists buys an
+   `ALREADY_EXISTS` and a round trip that taught nobody anything.
+4. Only when it does not exist: give the developer the create command from
+   `get_infra_setup` and ask them to run it. That one writes to their project,
+   so it stays theirs to run. Then read the identity back with the describe
+   above rather than asking them to copy it out of the output.
+
+   If gcloud is unavailable to you or refuses on their project, say so and ask
+   them to paste the `writerIdentity` — but ask because you tried, not instead
+   of trying.
 5. Call `register_writer_identity` with the service id, GCP project id, and
    writer identity.
 6. Remind the developer to set **LOGCORE_SERVICE_ID** on the deployed service

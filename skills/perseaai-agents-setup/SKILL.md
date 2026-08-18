@@ -131,7 +131,35 @@ when available.
        `x-api-key` header)
      - An error boundary or global error handler (window.onerror,
        unhandledrejection)
-     - An env var example (.env.example or similar) with the API key variable
+     - An env var example (.env.example or similar) with **all three** variables
+       the client module reads, not just the key:
+
+       ```
+       <PREFIX>LOGCORE_ENABLED=true
+       <PREFIX>LOGCORE_URL=<the `endpoint` from get_service_config>
+       <PREFIX>LOGCORE_KEY=<the `api_key` from get_service_config>
+       ```
+
+       `<PREFIX>` is whatever the project's bundler requires to expose a
+       variable to browser code, and it is **not optional** — an unprefixed
+       variable is simply absent at runtime, so the logger silently never sends
+       anything:
+
+       | Tooling | Prefix |
+       |---|---|
+       | Vite | `VITE_` |
+       | Next.js | `NEXT_PUBLIC_` |
+       | Create React App | `REACT_APP_` |
+       | Astro | `PUBLIC_` |
+       | Nuxt | `NUXT_PUBLIC_` |
+
+       Detect it from the project (`vite.config`, `next.config`, etc.) rather
+       than assuming; if you cannot tell, ask the developer instead of guessing.
+
+       `endpoint` is **logcore's gateway**, a different service from the agents
+       API. The client posts to `<PREFIX>LOGCORE_URL` + `/v1/logs`. If
+       `endpoint` comes back empty the environment is not configured — say so
+       and stop rather than inventing a URL.
      - **The wiring**: install the global handlers and mount the error
        boundary at the entry point. A boundary that wraps nothing and a
        handler nobody installs report nothing, no matter how correct the
@@ -276,8 +304,11 @@ interleaved partial writes.
   `wire_shape` + `golden_entry`, which are language-independent, and Phase 5
   verifies what your code actually emitted. A missing reference snippet is not
   a reason to refuse, to guess, or to substitute another language's example.
-- For frontends, the API key goes in an environment variable (e.g.,
-  VITE_LOGCORE_KEY, NEXT_PUBLIC_LOGCORE_KEY).
+- For frontends, all three variables go in the environment with the bundler's
+  browser prefix — `<PREFIX>LOGCORE_ENABLED`, `<PREFIX>LOGCORE_URL` and
+  `<PREFIX>LOGCORE_KEY`. The key alone is not enough: without the URL the client
+  has nowhere to post, and without the prefix none of them reach browser code at
+  all. Never hardcode the key in source.
 - For backends, no API key is needed in code — Cloud Logging captures stdout
   automatically — but LOGCORE_SERVICE_ID is required, and it is the one field
   without which nothing works: logcore discards a sink-delivered log that

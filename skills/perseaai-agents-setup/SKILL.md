@@ -10,14 +10,14 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.3.3"
+  version: "0.3.4"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
      and src/mcp/tools/logging_snippet.py (development @ 2bf8103, which
      includes the field constraints from PR #31, plus the required build
-     commands and `set_build_commands` in PR #32 — 2026-08-18). Keep in
-     sync. -->
+     commands and `set_build_commands` in PR #32 and the parsed `error.stack`
+     in PR #34 — 2026-08-18). Keep in sync. -->
 
 # Persea AI Agents Platform — Project Onboarding
 
@@ -146,6 +146,40 @@ when available.
 
      `validate_setup` checks these, so Phase 5 catches them before the developer
      does — but only if you run it on the code's REAL output.
+   - **`error.stack` is a list of PARSED FRAMES, never the raw traceback
+     string.** There is no `stack_trace` field; logcore forbids unknown fields,
+     so one fails the whole entry. Each frame is
+     `{function, file, line, column, inApp}`:
+
+     ```json
+     "error": {
+       "type": "TypeError",
+       "message": "Cannot read properties of undefined",
+       "stack": [
+         {"function": "checkout", "file": "app.js", "line": 1,
+          "column": 48213, "inApp": true}
+       ]
+     }
+     ```
+
+     Three details decide whether this actually works:
+
+     - **Innermost first.** The frame that threw is index 0. logcore takes the
+       first `inApp` frame as the issue's top location, so the wrong order
+       groups every error in a service under whatever entry point they share.
+       JS `error.stack` is already in this order; Python's
+       `traceback.extract_tb` is the reverse and must be flipped.
+     - **`inApp`, not `in_app`.** logcore reads this key off the raw payload
+       before validating, so snake_case passes validation and is then never
+       seen: every frame counts as not-in-app and the grouping loses the frames
+       it works from.
+     - **Keep `column`.** A production bundle puts every frame on line 1, so
+       the column is the only thing that locates the frame in the source map.
+
+     This is not cosmetic. Symbolication and the fingerprint are both computed
+     from these frames, and on a backend the failure is silent: the log is
+     accepted and grouped, and the emission to the classifier dies afterwards.
+     The error never reaches anyone.
 3. Read the project's existing code to understand its patterns and style.
    Locate the extension points you will register with: the entry point, the
    shared HTTP client instance, the middleware chain. You need to know where

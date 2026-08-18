@@ -10,12 +10,14 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.3.2"
+  version: "0.3.3"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
-     and src/mcp/tools/logging_snippet.py (development @ 19353ce, plus the
-     field constraints in PR #31 — 2026-08-18). Keep in sync. -->
+     and src/mcp/tools/logging_snippet.py (development @ 2bf8103, which
+     includes the field constraints from PR #31, plus the required build
+     commands and `set_build_commands` in PR #32 — 2026-08-18). Keep in
+     sync. -->
 
 # Persea AI Agents Platform — Project Onboarding
 
@@ -26,9 +28,9 @@ phases below in order.
 
 This skill drives tools served by the Persea AI agents platform MCP server:
 `check_github_connection`, `get_github_auth_url`, `list_organizations`,
-`list_projects`, `create_project`, `add_service`, `get_service_config`,
-`get_logging_snippet`, `get_infra_setup`, `register_writer_identity`,
-`validate_setup`, and `register_pr`.
+`list_projects`, `create_project`, `add_service`, `set_build_commands`,
+`get_service_config`, `get_logging_snippet`, `get_infra_setup`,
+`register_writer_identity`, `validate_setup`, and `register_pr`.
 
 If these tools are not available in the session, the MCP server is not
 connected. Stop and point the user to the installation instructions in this
@@ -58,16 +60,45 @@ when available.
      server-side. The type says how logs reach logcore (gateway vs sink), NOT
      what the service is written in — the language is its own field, so do not
      pick a type based on it. PYTHON_BACKEND is the legacy spelling of BACKEND.
+   - `setup_command` and `test_command`: what a FRESH CLONE of this repo runs
+     to install its dependencies, and to run its test suite. **Read them out of
+     the project** — `package.json` scripts, pyproject, Makefile, the README's
+     own instructions — rather than assuming. Common pairs:
+
+     | project | `setup_command` | `test_command` |
+     |---|---|---|
+     | npm | `npm ci` | `npm test` |
+     | pnpm | `pnpm install --frozen-lockfile` | `pnpm test` |
+     | yarn | `yarn install --frozen-lockfile` | `yarn test` |
+     | poetry | `poetry install` | `poetry run pytest` |
+     | pip | `pip install -r requirements.txt` | `pytest` |
+     | go | `go mod download` | `go test ./...` |
+
+     Both are **required** to register a service, and this is not paperwork.
+     The debugger clones the repo, installs it, reproduces the bug and verifies
+     its own fix — so a service without them registers fine and is then skipped
+     with "has no branch/setup/test command configured", minutes later, in a job
+     the developer never sees. If the repo genuinely has no test script, say so
+     and agree a command with the developer instead of inventing one that will
+     fail on first use.
 2. Call `list_projects` to check if a project already exists for this repo.
-   - If a project exists with this repo, use it and skip to Phase 3.
+   - If a project exists with this repo, use it and skip to Phase 3 — but first
+     confirm the service still has both build commands. A service registered
+     before they were required has neither, and the debugger skips it in
+     silence. Call `set_build_commands` with the `service_id` and the pair you
+     detected; it fixes the service in place, so there is no need to delete and
+     re-register anything.
    - If no project exists:
      a. Call `list_organizations` to get the user's organizations.
      b. If multiple organizations, present them as a list and let the user choose.
      c. Ask for a project name and description.
-     d. Call `create_project` with the selected `organization_id`.
+     d. Call `create_project` with the selected `organization_id`. Every entry
+        in `services` needs `setup_command` and `test_command` as well — the
+        call is refused if any one of them is missing, and the error names the
+        repo that is short.
    - If a project exists without this repo, ask: "Add this repo to project
      '{name}'?" If yes, call `add_service` with the project id, repo, branch,
-     service type, and language.
+     service type, `setup_command`, `test_command`, and language.
 3. `add_service` is idempotent on `(repo_full_name, branch)`. When a service for
    that pair already exists it returns the existing one with
    `already_existed: true` instead of creating a second. **Read that field and

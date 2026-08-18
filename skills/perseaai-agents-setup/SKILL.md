@@ -10,7 +10,7 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.2.0"
+  version: "0.2.1"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
@@ -67,7 +67,19 @@ when available.
    - If a project exists without this repo, ask: "Add this repo to project
      '{name}'?" If yes, call `add_service` with the project id, repo, branch,
      service type, and language.
-3. Ask: "What is your target branch for PRs?" (suggest the detected default
+3. `add_service` is idempotent on `(repo_full_name, branch)`. When a service for
+   that pair already exists it returns the existing one with
+   `already_existed: true` instead of creating a second. **Read that field and
+   report it** — "this repo was already registered, reusing it" — rather than
+   telling the developer you created something. Retrying the call is safe.
+   - Only the pair is idempotent, not the repo alone: the same repo on two
+     branches is a legitimate staging/production pair, and both get their own
+     service and their own `service_id`.
+   - So pass the branch you actually detected. Passing a different branch than
+     the one already registered creates a SECOND service for the same repo,
+     which is how a project ends up with two entries that look identical in the
+     UI but carry different ids.
+4. Ask: "What is your target branch for PRs?" (suggest the detected default
    branch)
 
 ## Phase 3: Code Generation

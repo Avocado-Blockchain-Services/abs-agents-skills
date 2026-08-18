@@ -10,12 +10,12 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.3.1"
+  version: "0.3.2"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
-     (@ 43c5525, PR #27, pending merge to development — 2026-08-17).
-     Keep in sync. -->
+     and src/mcp/tools/logging_snippet.py (development @ 19353ce, plus the
+     field constraints in PR #31 — 2026-08-18). Keep in sync. -->
 
 # Persea AI Agents Platform — Project Onboarding
 
@@ -102,6 +102,19 @@ when available.
      `wire_shape`.
    - Its `required_fields` is transport-aware: obey it exactly. The two paths
      identify the sender differently, and getting it wrong is silent.
+   - **`field_patterns` and `field_enums` are the formats the gateway enforces.**
+     A value of the right kind but the wrong shape is a **422**, and these are
+     the ones that actually bit real integrations:
+
+     | Field | Rule | The mistake it catches |
+     |---|---|---|
+     | `insert_id` | `^[0-9a-f]{32}$` | A full SHA-256 digest is **64** chars and is rejected. **Truncate to the first 32** — the shipped loggers do (`sha256(...)[:32]` / `.slice(0, 32)`) |
+     | `env` | `prod`, `staging`, `dev`, `test`, `local` | It is spelled **`prod`**, not `production` |
+     | `service` | `^[a-z0-9][a-z0-9._-]{0,62}$` | Uppercase or spaces in a service name |
+     | `source_project` | `^[a-z][a-z0-9-]{4,28}[a-z0-9]$` | Anything under 6 characters, and the empty string |
+
+     `validate_setup` checks these, so Phase 5 catches them before the developer
+     does — but only if you run it on the code's REAL output.
 3. Read the project's existing code to understand its patterns and style.
    Locate the extension points you will register with: the entry point, the
    shared HTTP client instance, the middleware chain. You need to know where

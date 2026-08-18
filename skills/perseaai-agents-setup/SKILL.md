@@ -169,6 +169,18 @@ when available.
        groups every error in a service under whatever entry point they share.
        JS `error.stack` is already in this order; Python's
        `traceback.extract_tb` is the reverse and must be flipped.
+     - **Follow the exception chain to its root, and put the root first.** A
+       wrapped exception's own traceback stops at the `raise` — the line that
+       actually broke is not in it. Wrapping is ordinary in a backend (a
+       repository tapping a driver error, a service layer relabelling), and
+       since logcore keys the issue on the first `inApp` frame, stopping at the
+       wrapper collapses every error that layer re-raises into one issue. Every
+       language exposes the chain: Python `__cause__`/`__context__`, Java
+       `getCause()`, Ruby `cause`, JS `error.cause`, Go `errors.Unwrap`. Honour
+       an explicit suppression where the language has one — Python's
+       `raise ... from None` is the author saying the context is noise. Keep
+       `type` and `message` from the exception actually raised: that is what
+       the service reported and what its own logs will say.
      - **`inApp`, not `in_app`.** logcore reads this key off the raw payload
        before validating, so snake_case passes validation and is then never
        seen: every frame counts as not-in-app and the grouping loses the frames

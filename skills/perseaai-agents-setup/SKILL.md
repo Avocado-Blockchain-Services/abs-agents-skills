@@ -10,11 +10,12 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.2.1"
+  version: "0.3.0"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
-     (development branch @ e5bda30, 2026-08-17) — keep in sync. -->
+     (@ 43c5525, PR #27, pending merge to development — 2026-08-17).
+     Keep in sync. -->
 
 # Persea AI Agents Platform — Project Onboarding
 
@@ -102,13 +103,39 @@ when available.
    - Its `required_fields` is transport-aware: obey it exactly. The two paths
      identify the sender differently, and getting it wrong is silent.
 3. Read the project's existing code to understand its patterns and style.
-4. Generate logcore integration code by ONLY CREATING NEW FILES:
+   Locate the extension points you will register with: the entry point, the
+   shared HTTP client instance, the middleware chain. You need to know where
+   they are before you generate anything.
+4. Put the integration LOGIC in new files. You may EDIT existing files, but
+   only to register with an extension point — never to restructure what is
+   there. Follow this hierarchy, stopping at the first rung that applies:
+   a. **Use the extension point the library already provides.** axios exposes
+      `interceptors`, Angular has `HttpInterceptor`, Express and FastAPI have
+      middleware, Django has middleware. When one exists the edit is ONE line
+      at the place the client or app is constructed, and no call site changes.
+   b. **If there is none, install from a new module.** `fetch` has no
+      interceptor. Patch it from a new file, install it explicitly from the
+      entry point, and return an uninstall function. One global effect,
+      localized and reversible — or skip HTTP instrumentation entirely and
+      rely on the global handlers, which already catch failures that
+      propagate.
+   c. **Never invent an abstraction.** Do NOT introduce a wrapper, a `request`
+      helper, a base client, or any layer that forces call sites to be
+      rewritten. Rewriting how the project makes its calls is not integration,
+      it is a refactor the developer did not ask for. If instrumenting a call
+      path would require touching call sites, do not instrument it — say so
+      instead.
+   The generated code itself is:
    - For frontends (http — the gateway resolves identity from the API key):
      - A logcore client module (HTTP POST to the logcore endpoint with an
        `x-api-key` header)
      - An error boundary or global error handler (window.onerror,
        unhandledrejection)
      - An env var example (.env.example or similar) with the API key variable
+     - **The wiring**: install the global handlers and mount the error
+       boundary at the entry point. A boundary that wraps nothing and a
+       handler nobody installs report nothing, no matter how correct the
+       module is.
      - Entry fields stay FLAT: `service`, `env`, `source_project`, `insert_id`
        are top-level. This path never touches Cloud Logging, so nothing is
        promoted.
@@ -116,6 +143,11 @@ when available.
      service_id):
      - A structured logger module (JSON to stdout — Cloud Logging captures it)
      - A logging middleware for the framework
+     - **The wiring**: register that middleware on the app. Mind the ordering
+       semantics of the framework — Express error middleware goes last and
+       takes four arguments; FastAPI runs `add_middleware` in reverse order of
+       registration. Registered in the wrong position it catches nothing while
+       looking installed.
      - An env var example declaring **LOGCORE_SERVICE_ID**, whose value is the
        `service_id` from `get_service_config`. Read it from the environment;
        do NOT hardcode it, because a re-created service is issued a new id and
@@ -173,6 +205,22 @@ verifiable in a language the platform ships no snippet for.
    Read its `tested_path` and `covers_production_logs`: for a backend this
    only exercises the gateway, NOT the sink its real logs travel through, so
    a green result there does not prove production logs arrive.
+5. **Verify the wiring, not just the emitter.** Steps 1-3 prove the module
+   PRODUCES a correct entry. They do not prove anything CALLS it — a perfectly
+   valid module nobody invokes reports exactly nothing, and that failure is
+   silent. So also confirm the registration is real: the entry point imports
+   and calls the installer, the boundary wraps the component tree, the
+   middleware sits in the chain.
+6. **Run the project's own build and tests after editing** (`npm run build`,
+   `pytest`, `go build`, whatever the repo uses). Adding a file is inert if it
+   is wrong; editing an entry point is not — a bad edit breaks the app instead
+   of merely failing to log.
+   - If it fails, REVERT your edit to that file and report it. Never leave a
+     broken entry point behind: an integration that does not log is
+     recoverable, an app that does not start is not.
+   - If you cannot identify the framework's extension point with confidence,
+     do NOT guess. Skip the edit, ship the new modules, and tell the developer
+     exactly what to wire and where — the pre-existing behaviour.
 
 ## Phase 6: Create PR
 
@@ -184,12 +232,43 @@ verifiable in a language the platform ships no snippet for.
    platform.
 6. Report the PR URL to the developer.
 
+## Code Quality Checklist
+
+These are the MINIMUM bar, not the ceiling. They are verifiable by reading the
+diff — apply them instead of reaching for a named design pattern. The
+project's own conventions always win over your personal preference.
+
+Every transport:
+
+- Logging must never break the app. Swallow transport failures; never
+  propagate an exception or block the user's flow because a log could not be
+  delivered.
+- Add NO new runtime dependencies. Use what the project already has.
+- The module must be exercisable with the transport stubbed — no network, no
+  credentials. Phase 5 depends on this; an untestable module cannot be
+  validated.
+- Anything installed globally returns its own uninstall/cleanup function.
+- Comments explain WHY, not WHAT. A deterministic insert_id earns a line; a
+  comment restating the function name is noise.
+- Never log PII or secrets: no request bodies, tokens, or auth headers.
+- One module, one purpose. Keep the client, the global handlers, and the
+  framework adapter in separate files.
+
+http (frontend): never block navigation or the render path — the request is
+fire-and-forget and survives page unload.
+
+stdout (backend): never emit at import time; one JSON object per line, no
+interleaved partial writes.
+
 ## Critical Rules
 
-- **ONLY ADD NEW FILES. NEVER modify, refactor, or wrap the user's existing
-  code.** The integration must be purely additive. Users want zero changes to
-  their source code. Create standalone modules that the user can wire into
-  their app themselves.
+- **Keep edits to existing code minimal, localized, and justified.** The
+  integration logic belongs in new files. Every edit to a file the developer
+  already had must be a registration at an extension point — importing and
+  calling an installer, adding an interceptor, mounting middleware, wrapping
+  the root component. Never restructure, reformat, rename, or refactor code
+  you are passing through, and never rewrite call sites. If you cannot express
+  the change as "register X at Y", it does not belong in this PR.
 - NEVER hardcode API keys in source code. Use environment variables.
 - Generate code that fits the project's existing patterns — do not use
   templates.
@@ -204,5 +283,10 @@ verifiable in a language the platform ships no snippet for.
   without which nothing works: logcore discards a sink-delivered log that
   declares no service_id, because a service NAME is not unique across
   customers.
-- At the end, briefly tell the user how to wire the generated code into their
-  app (e.g., "wrap your App component with LogcoreErrorBoundary in main.jsx").
+- At the end, report the wiring you applied — name the files you edited and
+  show the diff, so the developer reviews it rather than discovering it.
+- If you could not wire it (unknown framework, build failed and you reverted),
+  say plainly that **the integration is incomplete and reports nothing yet**,
+  and give the exact steps left. Do not describe it as done. A developer who
+  believes logging is live and has none is worse off than one who knows it is
+  pending.

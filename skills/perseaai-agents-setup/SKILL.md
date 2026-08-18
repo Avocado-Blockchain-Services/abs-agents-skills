@@ -219,6 +219,16 @@ when available.
    - For frontends (http — the gateway resolves identity from the API key):
      - A logcore client module (HTTP POST to the logcore endpoint with an
        `x-api-key` header)
+     - **The client has to be able to emit WITHOUT an exception**, and to carry
+       `labels`, `context` and `fingerprint` — every one of them a valid entry
+       field on this transport. A client whose only entry point takes an `Error`
+       covers exactly the failures that throw, and the ones that hurt most do
+       not: a bug that computes the wrong value raises nothing, so no global
+       handler and no error boundary can ever see it. The app itself is the only
+       thing positioned to report it, and it needs a call to make. Shape it as
+       `log(severity, message, {error, context, labels, fingerprint})` with a
+       thin `logError` on top, or as whatever the project's naming calls for —
+       the wire format is the contract, the function names are not.
      - An error boundary or global error handler (window.onerror,
        unhandledrejection)
      - An env var example (.env.example or similar) with **all three** variables

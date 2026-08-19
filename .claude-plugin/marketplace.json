@@ -10,6 +10,15 @@
       "name": "perseaai-agents",
       "source": "./",
       "description": "Onboard projects onto the Persea AI agents platform: connect GitHub, register services, and integrate logcore structured logging."
+    },
+    {
+      "name": "perseaai-agents-dev",
+      "source": {
+        "source": "git",
+        "url": "https://github.com/Avocado-Blockchain-Services/abs-agents-skills.git",
+        "ref": "development"
+      },
+      "description": "Canal de desarrollo: apunta al API dev y sirve el contenido de la rama development antes de promoverse a main."
     }
   ]
 }

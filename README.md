@@ -6,8 +6,38 @@ agents (Claude Code, opencode, Cursor, Codex, …) how to onboard a project onto
 the platform: connect GitHub, register the repo as a service, integrate
 logcore structured logging, and open the integration PR.
 
-> ⚠️ **Early stage.** The MCP endpoint below points at our dev environment;
-> the URL and server naming will change before general availability.
+> ⚠️ **Early stage.** The MCP endpoints below point at pre-production
+> environments; URLs will move to a stable domain before general availability.
+
+## Channels
+
+| Channel | Plugin | Branch | MCP endpoint |
+|---|---|---|---|
+| **Stable** | `perseaai-agents` | `main` | staging API (`agents-api-…`) |
+| **Dev** | `perseaai-agents-dev` | `development` | dev API (`agents-api-dev-…`) |
+
+Both channels are served by this same marketplace. Install **one per
+workspace** — they ship the same skill and would double-trigger side by side.
+Skill changes land on `development` first, get dogfooded by the team against
+the dev API, and are promoted to `main` with a version bump.
+
+**Promoting `development` → `main`:** merge, but keep the channel-owned files
+out of the merge — `.claude-plugin/plugin.json` (name/version) and `.mcp.json`
+(endpoint) belong to each branch:
+
+```
+git switch main && git merge --no-ff --no-commit development
+git checkout main -- .claude-plugin/ .mcp.json
+# bump version in .claude-plugin/plugin.json, then commit
+```
+
+**Testing an unmerged PR branch** needs no channel at all — a marketplace can
+be a local checkout:
+
+```
+/plugin marketplace add /path/to/your/abs-agents-skills   # on the PR branch
+/plugin install perseaai-agents-dev@abs-agents-skills
+```
 
 ## Install
 
@@ -17,6 +47,9 @@ logcore structured logging, and open the integration PR.
 /plugin marketplace add Avocado-Blockchain-Services/abs-agents-skills
 /plugin install perseaai-agents@abs-agents-skills
 ```
+
+(Team members testing pre-release content: `/plugin install
+perseaai-agents-dev@abs-agents-skills` instead.)
 
 This also configures the platform MCP server (key `perseaai-agents`) via the
 bundled `.mcp.json`; an OAuth browser window will open on first use.
@@ -34,7 +67,10 @@ instead of project-level scope, `--copy` to copy files instead of symlinking.
 
 Then connect the MCP server manually (streamable HTTP + OAuth):
 
-- **URL:** `https://agents-api-dev-352942961463.us-east4.run.app/mcp/lite/mcp`
+- **URL (stable / staging API):**
+  `https://agents-api-352942961463.us-east4.run.app/mcp/lite/mcp`
+- **URL (dev channel):**
+  `https://agents-api-dev-352942961463.us-east4.run.app/mcp/lite/mcp`
 - **opencode** — add to `opencode.json`:
 
   ```json
@@ -42,7 +78,7 @@ Then connect the MCP server manually (streamable HTTP + OAuth):
     "mcp": {
       "perseaai-agents": {
         "type": "remote",
-        "url": "https://agents-api-dev-352942961463.us-east4.run.app/mcp/lite/mcp"
+        "url": "https://agents-api-352942961463.us-east4.run.app/mcp/lite/mcp"
       }
     }
   }

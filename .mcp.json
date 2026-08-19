@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "perseaai-agents": {
+    "perseaai-agents-dev": {
       "type": "http",
-      "url": "https://agents-api-352942961463.us-east4.run.app/mcp/lite/mcp",
+      "url": "https://agents-api-dev-352942961463.us-east4.run.app/mcp/lite/mcp",
       "oauth": {
         "callbackPort": 29352
       }

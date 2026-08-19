@@ -1,7 +1,7 @@
 {
-  "name": "perseaai-agents",
+  "name": "perseaai-agents-dev",
   "version": "0.3.0",
-  "description": "Onboard projects onto the Persea AI agents platform: connect GitHub, register services, and integrate logcore structured logging.",
+  "description": "Onboard projects onto the Persea AI agents platform: connect GitHub, register services, and integrate logcore structured logging (canal de desarrollo — API dev).",
   "author": {
     "name": "Avocado Blockchain Services",
     "email": "support@avocadoblock.com"

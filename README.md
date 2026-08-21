@@ -102,10 +102,20 @@ The `perseaai-agents-setup` skill triggers automatically and walks through
 GitHub connection → project registration → logging integration → validation
 → PR.
 
+Una vez integrado el proyecto, para saber si está funcionando:
+
+> "¿Está llegando algo a la plataforma desde este repo?"
+> "¿Cómo va mi proyecto?"
+
+La skill `perseaai-agents-status` se dispara sola: diagnostica el pipeline
+cuando todavía no hay datos, y reporta logs, veredictos del classifier, runs
+del debugger y PRs esperando review cuando sí los hay.
+
 ## Repository layout
 
 - `skills/perseaai-agents-setup/SKILL.md` — the onboarding skill
   ([agentskills.io](https://agentskills.io) format)
+- `skills/perseaai-agents-status/SKILL.md` — la skill de monitoreo post-setup
 - `.claude-plugin/` — Claude Code plugin + self-hosted marketplace manifests
 - `.mcp.json` — bundled MCP connection for Claude Code plugin installs
 - `docs/superpowers/` — design spec and implementation plan

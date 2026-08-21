@@ -2,7 +2,7 @@
 
 Agent skills for the **Persea AI agents platform** by Avocado Blockchain
 Services. Ships the `perseaai-agents-setup` skill, which teaches AI coding
-agents (Claude Code, opencode, Cursor, Codex, …) how to onboard a project onto
+agents (Claude Code, Codex, opencode, Cursor, …) how to onboard a project onto
 the platform: connect GitHub, register the repo as a service, integrate
 logcore structured logging, and open the integration PR.
 
@@ -22,13 +22,14 @@ Skill changes land on `development` first, get dogfooded by the team against
 the dev API, and are promoted to `main` with a version bump.
 
 **Promoting `development` → `main`:** merge, but keep the channel-owned files
-out of the merge — `.claude-plugin/plugin.json` (name/version) and `.mcp.json`
-(endpoint) belong to each branch:
+out of the merge — `.claude-plugin/plugin.json` and
+`.codex-plugin/plugin.json` (name/version), `.agents/plugins/marketplace.json`
+(Codex channel), and `.mcp.json` (endpoint) belong to each branch:
 
 ```
 git switch main && git merge --no-ff --no-commit development
-git checkout main -- .claude-plugin/ .mcp.json
-# bump version in .claude-plugin/plugin.json, then commit
+git checkout main -- .claude-plugin/ .codex-plugin/ .agents/plugins/ .mcp.json
+# bump the same version in both plugin manifests, then commit
 ```
 
 **Testing an unmerged PR branch** needs no channel at all — a marketplace can
@@ -54,7 +55,17 @@ perseaai-agents-dev@abs-agents-skills` instead.)
 This also configures the platform MCP server (key `perseaai-agents`) via the
 bundled `.mcp.json`; an OAuth browser window will open on first use.
 
-### Any other agent (opencode, Cursor, Codex, …)
+### Codex (native plugin: tools + skill)
+
+```sh
+codex plugin marketplace add Avocado-Blockchain-Services/abs-agents-skills
+codex plugin add perseaai-agents@abs-agents-skills
+```
+
+Start a new Codex session in the repository after installation so it loads the
+bundled MCP server and onboarding skill.
+
+### Any other agent (opencode, Cursor, …)
 
 Install the skill:
 
@@ -84,8 +95,8 @@ Then connect the MCP server manually (streamable HTTP + OAuth):
   }
   ```
 
-- **Cursor / Codex** — register a remote (streamable HTTP) MCP server named
-  `perseaai-agents` with the URL above, using each client's MCP settings.
+- **Cursor** — register a remote (streamable HTTP) MCP server named
+  `perseaai-agents` with the URL above, using Cursor's MCP settings.
 
 ### Zero-install fallback
 
@@ -107,7 +118,9 @@ GitHub connection → project registration → logging integration → validatio
 - `skills/perseaai-agents-setup/SKILL.md` — the onboarding skill
   ([agentskills.io](https://agentskills.io) format)
 - `.claude-plugin/` — Claude Code plugin + self-hosted marketplace manifests
-- `.mcp.json` — bundled MCP connection for Claude Code plugin installs
+- `.codex-plugin/` — Codex plugin manifest
+- `.agents/plugins/marketplace.json` — native Codex marketplace catalog
+- `.mcp.json` — bundled MCP connection for Claude Code and Codex plugin installs
 - `docs/superpowers/` — design spec and implementation plan
 
 ## License

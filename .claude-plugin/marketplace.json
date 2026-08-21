@@ -14,8 +14,9 @@
     {
       "name": "perseaai-agents-dev",
       "source": {
-        "source": "git",
+        "source": "git-subdir",
         "url": "https://github.com/Avocado-Blockchain-Services/abs-agents-skills.git",
+        "path": ".",
         "ref": "development"
       },
       "description": "Canal de desarrollo: apunta al API dev y sirve el contenido de la rama development antes de promoverse a main."

@@ -1,0 +1,36 @@
+{
+  "name": "perseaai-agents",
+  "version": "0.3.0",
+  "description": "Onboard projects onto the Persea AI agents platform: connect GitHub, register services, and integrate logcore structured logging.",
+  "author": {
+    "name": "Avocado Blockchain Services",
+    "email": "support@avocadoblock.com",
+    "url": "https://github.com/Avocado-Blockchain-Services"
+  },
+  "repository": "https://github.com/Avocado-Blockchain-Services/abs-agents-skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "persea",
+    "onboarding",
+    "logcore",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Persea AI Agents",
+    "shortDescription": "Connect a repository to Persea AI Agents.",
+    "longDescription": "Onboard repositories, register services, configure logcore structured logging, and validate the integration with Persea AI Agents.",
+    "developerName": "Avocado Blockchain Services",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Project onboarding",
+      "MCP tools",
+      "Logcore integration"
+    ],
+    "defaultPrompt": [
+      "Connect this repository to the Persea platform."
+    ],
+    "brandColor": "#3212A8"
+  }
+}

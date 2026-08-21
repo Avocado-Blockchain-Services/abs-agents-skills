@@ -102,6 +102,26 @@ The `perseaai-agents-setup` skill triggers automatically and walks through
 GitHub connection → project registration → logging integration → validation
 → PR.
 
+The GitHub connection is organization-scoped and uses one browser interaction:
+
+1. The agent lists the Persea organizations and asks which one to configure.
+2. It calls `check_github_connection(organization_id)`.
+3. If needed, it calls `get_github_connect_url(organization_id)` and opens the
+   single returned `connect_url`.
+4. It polls the same organization until the API confirms the installation.
+
+The connection URL combines GitHub App installation and user authorization.
+There are no separate authorization and installation URLs, and closing the
+browser window is not treated as success.
+
+### GitHub MCP tools
+
+| Tool | Contract |
+|---|---|
+| `list_organizations()` | Select the Persea organization before connecting GitHub. |
+| `check_github_connection(organization_id)` | Report whether that organization has a verified GitHub App installation. |
+| `get_github_connect_url(organization_id)` | Return one `connect_url` for an organization owner to open. |
+
 Una vez integrado el proyecto, para saber si está funcionando:
 
 > "¿Está llegando algo a la plataforma desde este repo?"

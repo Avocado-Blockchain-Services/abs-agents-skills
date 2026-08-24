@@ -10,14 +10,12 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.3.4"
+  version: "0.4.0"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
-     and src/mcp/tools/logging_snippet.py (development @ 2bf8103, which
-     includes the field constraints from PR #31, plus the required build
-     commands and `set_build_commands` in PR #32 and the parsed `error.stack`
-     in PR #34 — 2026-08-18). Keep in sync. -->
+     and src/mcp/tools/logging_snippet.py. The GitHub connection contract is
+     organization-scoped and single-step as of 2026-08-21. Keep in sync. -->
 
 # Persea AI Agents Platform — Project Onboarding
 
@@ -27,7 +25,7 @@ phases below in order.
 ## Prerequisites
 
 This skill drives tools served by the Persea AI agents platform MCP server:
-`check_github_connection`, `get_github_auth_url`, `list_organizations`,
+`list_organizations`, `check_github_connection`, `get_github_connect_url`,
 `list_projects`, `create_project`, `add_service`, `set_build_commands`,
 `get_service_config`, `get_logging_snippet`, `get_infra_setup`,
 `register_writer_identity`, `validate_setup`, and `register_pr`.
@@ -42,10 +40,16 @@ when available.
 
 ## Phase 1: GitHub Connection
 
-1. Call `check_github_connection` to verify GitHub is connected.
-2. If not connected, call `get_github_auth_url` and ask the developer to open
-   the returned `install_url` in their browser to install the GitHub App.
-3. Poll `check_github_connection` until `connected` is true.
+1. Call `list_organizations` before checking GitHub. If several Persea
+   organizations are available, present them and let the developer select one.
+   Keep that `organization_id` for every organization-scoped call below.
+2. Call `check_github_connection(organization_id)` for the selected Persea
+   organization.
+3. If it is not connected, call `get_github_connect_url(organization_id)` and
+   ask the developer to open the one returned `connect_url`. GitHub performs
+   user authorization and App installation in that interaction.
+4. Poll `check_github_connection(organization_id)` until `connected` is true.
+   Do not continue merely because the browser window closed.
 
 ## Phase 2: Project Setup
 
@@ -89,10 +93,9 @@ when available.
      detected; it fixes the service in place, so there is no need to delete and
      re-register anything.
    - If no project exists:
-     a. Call `list_organizations` to get the user's organizations.
-     b. If multiple organizations, present them as a list and let the user choose.
-     c. Ask for a project name and description.
-     d. Call `create_project` with the selected `organization_id`. Every entry
+     a. Reuse the Persea organization selected in Phase 1.
+     b. Ask for a project name and description.
+     c. Call `create_project` with the selected `organization_id`. Every entry
         in `services` needs `setup_command` and `test_command` as well — the
         call is refused if any one of them is missing, and the error names the
         repo that is short.

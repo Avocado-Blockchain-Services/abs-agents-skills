@@ -16,7 +16,7 @@
     "mcp"
   ],
   "skills": "./skills/",
-  "mcpServers": "./.mcp.json",
+  "mcpServers": "./.codex-plugin/mcp.json",
   "interface": {
     "displayName": "Persea AI Agents",
     "shortDescription": "Connect a repository to Persea AI Agents.",

@@ -3,15 +3,15 @@
     "perseaai-agents-dev": {
       "type": "http",
       "url": "https://agents-api-dev-352942961463.us-east4.run.app/mcp/lite/mcp",
+      "scopes": [
+        "openid",
+        "profile",
+        "email",
+        "offline_access"
+      ],
       "oauth": {
         "clientId": "OwSOkAnm6fyS7igs8nKQI2btOo5IRm9X",
-        "callbackPort": 29352,
-        "scopes": [
-          "openid",
-          "profile",
-          "email",
-          "offline_access"
-        ]
+        "callbackPort": 29352
       }
     }
   }

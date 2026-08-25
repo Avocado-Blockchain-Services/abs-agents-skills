@@ -21,6 +21,13 @@ workspace** — they ship the same skill and would double-trigger side by side.
 Skill changes land on `development` first, get dogfooded by the team against
 the dev API, and are promoted to `main` with a version bump.
 
+### Development OAuth
+
+The development MCP uses a shared public OAuth client: its client ID is public
+and is not a secret. Auth0 is the authorization server. After installing the
+plugin, start a new host session before using the MCP so the host loads its
+configuration and begins a fresh authorization flow.
+
 **Promoting `development` → `main`:** merge, but keep the channel-owned files
 out of the merge — `.claude-plugin/plugin.json` and
 `.codex-plugin/plugin.json` (name/version), `.agents/plugins/marketplace.json`
@@ -52,13 +59,13 @@ be a local checkout:
 (Team members testing pre-release content: `/plugin install
 perseaai-agents-dev@abs-agents-skills` instead.)
 
-This also configures the platform MCP server (key `perseaai-agents`) via the
+This also configures the platform MCP server (key `perseaai-agents-dev`) via the
 bundled `.mcp.json`; an OAuth browser window will open on first use.
 
 ### Codex (native plugin: tools + skill)
 
 ```sh
-codex plugin marketplace add Avocado-Blockchain-Services/abs-agents-skills
+codex plugin marketplace add Avocado-Blockchain-Services/abs-agents-skills --ref development
 codex plugin add perseaai-agents@abs-agents-skills
 ```
 
@@ -150,7 +157,8 @@ del debugger y PRs esperando review cuando sí los hay.
 - `.claude-plugin/` — Claude Code plugin + self-hosted marketplace manifests
 - `.codex-plugin/` — Codex plugin manifest
 - `.agents/plugins/marketplace.json` — native Codex marketplace catalog
-- `.mcp.json` — bundled MCP connection for Claude Code and Codex plugin installs
+- `.mcp.json` — bundled MCP connection for Claude Code installs
+- `.codex-plugin/mcp.json` — bundled MCP connection for Codex plugin installs
 - `docs/superpowers/` — design spec and implementation plan
 
 ## License

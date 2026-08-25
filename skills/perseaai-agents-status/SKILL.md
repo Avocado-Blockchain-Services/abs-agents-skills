@@ -9,7 +9,7 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.1.0"
+  version: "0.1.1"
 ---
 
 <!-- The counters come from persea-agents-api:src/services/stats_service.py
@@ -69,7 +69,7 @@ becomes noise.
 | # | Condition | Reading | What to tell the user |
 |---|---|---|---|
 | 1 | `pr_url` is null | The integration was never completed | Hand back to `perseaai-agents-setup` |
-| 2 | `infra_status: "NOT_CONFIGURED"` (backends only) | The Cloud Logging sink is missing | The sink was never created — resume `perseaai-agents-setup` |
+| 2 | `infra_status: "NOT_CONFIGURED"` (`BACKEND` only) | The Cloud Logging sink is missing | The sink was never created — resume `perseaai-agents-setup` |
 | 3 | `infra_status: "PENDING_AUTH"` | Sink created, writer identity not authorized in GCP | The `gcloud` grant from setup never ran — resume `perseaai-agents-setup` |
 | 4 | `status: "NO_DATA"` and `last_activity_at` is null | Not one log ever arrived | The PR may be unmerged or undeployed, or the API key or endpoint is wrong. Resume `perseaai-agents-setup` to re-validate against a **real emitted line**, not a hand-written sample |
 | 5 | `status: "ACTIVE"` but `last_activity_at` older than 24h | Logs were arriving and stopped | Check the most recent deploy |
@@ -81,9 +81,22 @@ becomes noise.
 | 11 | `classified > 0`, `approved: 0`, `needs_attention: 0` | May be legitimate: the debugger skips `complex` issues | Call `list_debugger_runs` to confirm whether any run happened at all |
 | 12 | `needs_attention > 0` | Runs ended without a fix | Call `list_debugger_runs` and read `termination_reason` |
 
-A frontend service (`service_type: "WEB_APP_FRONTEND"`) posts to the gateway
-over HTTP and has no Cloud Logging sink, so rows 2 and 3 never apply to it.
-`infra_status` being null on a frontend is normal, not a finding.
+**Rows 2 and 3 apply only to a `BACKEND`** — the one type that is delivered
+through a Cloud Logging sink. A `WEB_APP_FRONTEND` posts to the gateway over
+HTTP, and so does an `EXTERNAL_BACKEND`: a service on a VPS, another cloud or a
+PaaS has no sink either. On both, `infra_status` is null because there is no
+infrastructure to configure, and reading that as a missing sink sends the
+developer to create one they cannot create, in a project their service does not
+run in. The services list also carries `transport` (`stdout` or `http`), which
+answers the same question directly.
+
+Diagnosing a gateway-delivered service that reports nothing means looking at the
+key and the endpoint instead, from row 4 onwards.
+
+One thing IS worth flagging: a service the developer says runs outside GCP but
+whose `service_type` reads `"BACKEND"` was registered before `EXTERNAL_BACKEND`
+existed. It holds no API key, so it cannot report at all — hand back to
+`perseaai-agents-setup`, which can correct it in place.
 
 ## Phase 2: Report
 

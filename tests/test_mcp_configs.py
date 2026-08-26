@@ -28,7 +28,23 @@ class McpConfigurationContractTests(unittest.TestCase):
             readme,
         )
 
-    def test_claude_root_config_uses_the_shared_oauth_contract(self) -> None:
+    def test_claude_root_config_uses_its_host_specific_oauth_contract(self) -> None:
+        """Claude Code accepts only `callbackPort` inside `oauth`.
+
+        A `clientId` or `scopes` key there makes it drop the whole server entry
+        at parse time -- silently. The plugin still loads and its skills appear,
+        but the MCP server is absent from `/mcp` entirely: not "needs
+        authentication", not an error, just missing. Verified by removing the
+        two keys from an installed build, after which the server registered.
+
+        It is not needed either: the resource metadata points at an Auth0 that
+        advertises `registration_endpoint` (/oidc/register), so Claude Code
+        performs dynamic client registration and discovers the scopes itself.
+
+        Codex is the opposite and keeps both keys -- see the test below. The two
+        hosts read different files (`.mcp.json` vs `.codex-plugin/mcp.json`), so
+        neither contract constrains the other.
+        """
         server = load_json(".mcp.json")["mcpServers"][MCP_NAME]
 
         self.assertEqual(
@@ -37,9 +53,7 @@ class McpConfigurationContractTests(unittest.TestCase):
                 "type": "http",
                 "url": MCP_URL,
                 "oauth": {
-                    "clientId": CLIENT_ID,
                     "callbackPort": 29352,
-                    "scopes": SCOPES,
                 },
             },
         )
@@ -65,12 +79,17 @@ class McpConfigurationContractTests(unittest.TestCase):
             },
         )
 
-    def test_plugin_manifests_reference_the_expected_mcp_configs_at_version_050(self) -> None:
+    def test_plugin_manifests_reference_the_expected_mcp_configs_at_version_051(self) -> None:
+        # The version is the plugin cache key: Claude Code stores an installed
+        # build under `cache/<marketplace>/<plugin>/<version>/` and reuses it
+        # rather than re-copying. Shipping a config fix without bumping this
+        # leaves every existing install on the old build, which is how the
+        # broken 0.5.0 kept coming back after the source was already correct.
         claude_manifest = load_json(".claude-plugin/plugin.json")
         codex_manifest = load_json(".codex-plugin/plugin.json")
 
-        self.assertEqual(claude_manifest["version"], "0.5.0")
-        self.assertEqual(codex_manifest["version"], "0.5.0")
+        self.assertEqual(claude_manifest["version"], "0.5.1")
+        self.assertEqual(codex_manifest["version"], "0.5.1")
         self.assertEqual(codex_manifest["mcpServers"], "./.codex-plugin/mcp.json")
 
 

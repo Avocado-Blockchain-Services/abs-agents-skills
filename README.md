@@ -92,6 +92,15 @@ configuration or the API advertises `scopes_supported`.
 `agy plugin install` copies the checkout into `~/.gemini/config/plugins/`, so
 to pick up plugin updates pull the branch and run the install again.
 
+> ⚠️ Do **not** install from the git URL
+> (`agy plugin install https://github.com/...abs-agents-skills.git`) for now.
+> That form only installs the repository's **default branch** (`main`, the
+> stable channel), which does not carry the Antigravity manifests yet — and
+> instead of failing, agy synthesizes a plugin from the Claude Code files and
+> mangles the HTTP MCP server into a broken empty-stdio entry (verified on agy
+> 1.1.21). Until the manifests are promoted to `main`, install from a local
+> checkout of `development` as shown above.
+
 ### Any other agent (opencode, Cursor, …)
 
 Install the skill:

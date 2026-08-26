@@ -29,21 +29,30 @@ class McpConfigurationContractTests(unittest.TestCase):
         )
 
     def test_claude_root_config_uses_its_host_specific_oauth_contract(self) -> None:
-        """Claude Code accepts only `callbackPort` inside `oauth`.
+        """Claude Code's `oauth` block carries the static client id and string scopes.
 
-        A `clientId` or `scopes` key there makes it drop the whole server entry
-        at parse time -- silently. The plugin still loads and its skills appear,
-        but the MCP server is absent from `/mcp` entirely: not "needs
-        authentication", not an error, just missing. Verified by removing the
-        two keys from an installed build, after which the server registered.
+        The Auth0 development tenant has dynamic client registration disabled
+        (its metadata still advertises /oidc/register -- advertising is not
+        enablement), so Claude Code must be handed the shared public client id
+        via `oauth.clientId`, the documented "pre-configured OAuth credentials"
+        path. No secret: it is a public PKCE client.
 
-        It is not needed either: the resource metadata points at an Auth0 that
-        advertises `registration_endpoint` (/oidc/register), so Claude Code
-        performs dynamic client registration and discovers the scopes itself.
+        `oauth.scopes` must be a SINGLE SPACE-SEPARATED STRING (RFC 6749 §3.3).
+        An array here fails Claude Code's config schema and the whole server
+        entry is dropped at parse time -- silently: absent from `/mcp`, not
+        "needs authentication", no error. That array is how 0.5.0 shipped
+        broken, and misreading the drop as "clientId is unsupported" is how
+        0.5.1 removed the client id and stranded Claude Code on the rejected
+        DCR path. Verified against Claude Code 2.1.246: array scopes -> entry
+        dropped; string scopes + clientId -> accepted ("client_id configured").
 
-        Codex is the opposite and keeps both keys -- see the test below. The two
-        hosts read different files (`.mcp.json` vs `.codex-plugin/mcp.json`), so
-        neither contract constrains the other.
+        Scopes are pinned explicitly because Claude Code (v2.1.196+) no longer
+        requests the discovered `scopes_supported` catalog and the dev
+        protected-resource metadata advertises no scopes; unpinned, the
+        authorize request would carry no scope and yield no refresh token.
+
+        Codex reads a different file with its own schema (top-level scopes
+        array) -- see the test below; neither contract constrains the other.
         """
         server = load_json(".mcp.json")["mcpServers"][MCP_NAME]
 
@@ -53,7 +62,9 @@ class McpConfigurationContractTests(unittest.TestCase):
                 "type": "http",
                 "url": MCP_URL,
                 "oauth": {
+                    "clientId": CLIENT_ID,
                     "callbackPort": 29352,
+                    "scopes": " ".join(SCOPES),
                 },
             },
         )
@@ -79,7 +90,7 @@ class McpConfigurationContractTests(unittest.TestCase):
             },
         )
 
-    def test_plugin_manifests_reference_the_expected_mcp_configs_at_version_051(self) -> None:
+    def test_plugin_manifests_reference_the_expected_mcp_configs_at_version_052(self) -> None:
         # The version is the plugin cache key: Claude Code stores an installed
         # build under `cache/<marketplace>/<plugin>/<version>/` and reuses it
         # rather than re-copying. Shipping a config fix without bumping this
@@ -88,8 +99,8 @@ class McpConfigurationContractTests(unittest.TestCase):
         claude_manifest = load_json(".claude-plugin/plugin.json")
         codex_manifest = load_json(".codex-plugin/plugin.json")
 
-        self.assertEqual(claude_manifest["version"], "0.5.1")
-        self.assertEqual(codex_manifest["version"], "0.5.1")
+        self.assertEqual(claude_manifest["version"], "0.5.2")
+        self.assertEqual(codex_manifest["version"], "0.5.2")
         self.assertEqual(codex_manifest["mcpServers"], "./.codex-plugin/mcp.json")
 
 

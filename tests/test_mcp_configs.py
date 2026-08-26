@@ -90,7 +90,46 @@ class McpConfigurationContractTests(unittest.TestCase):
             },
         )
 
-    def test_plugin_manifests_reference_the_expected_mcp_configs_at_version_052(self) -> None:
+    def test_antigravity_root_config_uses_its_host_specific_oauth_contract(self) -> None:
+        """Antigravity (agy) reads root `mcp_config.json`: `serverUrl` plus clientId only.
+
+        The remote-server key is `serverUrl` -- agy does not accept the `url` /
+        `httpUrl` spellings the other hosts use. The oauth block carries just the
+        shared public client id: there is no secret (public PKCE client), and no
+        scopes on purpose -- agy 1.1.21 sends no scope parameter and silently
+        ignores a `scopes` key in this block, so tokens come back scope-less with
+        the exact-resource audience (agy does send RFC 8707 `resource`) and NO
+        refresh token. Antigravity users therefore re-authenticate daily until agy
+        grows a scope lever or the API advertises `scopes_supported` in its
+        protected-resource metadata.
+
+        Verified live 2026-08-26 against agy 1.1.21: the authorize request carried
+        client_id, PKCE S256, redirect https://antigravity.google/oauth-callback
+        (the fixed hosted callback registered on the Auth0 client in terraform)
+        and resource=<MCP URL>; the minted token's `aud` was the exact endpoint.
+        """
+        server = load_json("mcp_config.json")["mcpServers"][MCP_NAME]
+
+        self.assertEqual(
+            server,
+            {
+                "serverUrl": MCP_URL,
+                "oauth": {
+                    "clientId": CLIENT_ID,
+                },
+            },
+        )
+
+    def test_antigravity_plugin_manifest_declares_the_google_schema(self) -> None:
+        manifest = load_json("plugin.json")
+
+        self.assertEqual(
+            manifest["$schema"], "https://antigravity.google/schemas/v1/plugin.json"
+        )
+        self.assertEqual(manifest["name"], MCP_NAME)
+        self.assertTrue(manifest["description"])
+
+    def test_plugin_manifests_reference_the_expected_mcp_configs_at_version_060(self) -> None:
         # The version is the plugin cache key: Claude Code stores an installed
         # build under `cache/<marketplace>/<plugin>/<version>/` and reuses it
         # rather than re-copying. Shipping a config fix without bumping this
@@ -98,9 +137,11 @@ class McpConfigurationContractTests(unittest.TestCase):
         # broken 0.5.0 kept coming back after the source was already correct.
         claude_manifest = load_json(".claude-plugin/plugin.json")
         codex_manifest = load_json(".codex-plugin/plugin.json")
+        antigravity_manifest = load_json("plugin.json")
 
-        self.assertEqual(claude_manifest["version"], "0.5.2")
-        self.assertEqual(codex_manifest["version"], "0.5.2")
+        self.assertEqual(claude_manifest["version"], "0.6.0")
+        self.assertEqual(codex_manifest["version"], "0.6.0")
+        self.assertEqual(antigravity_manifest["version"], "0.6.0")
         self.assertEqual(codex_manifest["mcpServers"], "./.codex-plugin/mcp.json")
 
 

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "perseaai-agents-dev": {
+      "serverUrl": "https://agents-api-dev-352942961463.us-east4.run.app/mcp/lite/mcp",
+      "oauth": {
+        "clientId": "OwSOkAnm6fyS7igs8nKQI2btOo5IRm9X"
+      }
+    }
+  }
+}

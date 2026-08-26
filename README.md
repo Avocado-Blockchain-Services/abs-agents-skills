@@ -72,6 +72,26 @@ codex plugin add perseaai-agents@abs-agents-skills
 Start a new Codex session in the repository after installation so it loads the
 bundled MCP server and onboarding skill.
 
+### Antigravity CLI (plugin: tools + skills)
+
+The repository root is also an Antigravity plugin (`plugin.json` +
+`mcp_config.json`). `agy plugin install` takes a local directory, so the
+development channel installs from a checkout of the `development` branch:
+
+```sh
+git clone -b development git@github.com:Avocado-Blockchain-Services/abs-agents-skills.git
+agy plugin install ./abs-agents-skills
+```
+
+Sign-in uses the same shared public OAuth client through a Google-hosted
+callback page — paste the authorization code back into the CLI. Note that
+Antigravity requests no scopes and Auth0 therefore issues no refresh token:
+expect to re-authenticate about once a day until agy grows a scope
+configuration or the API advertises `scopes_supported`.
+
+`agy plugin install` copies the checkout into `~/.gemini/config/plugins/`, so
+to pick up plugin updates pull the branch and run the install again.
+
 ### Any other agent (opencode, Cursor, …)
 
 Install the skill:
@@ -159,6 +179,8 @@ del debugger y PRs esperando review cuando sí los hay.
 - `.agents/plugins/marketplace.json` — native Codex marketplace catalog
 - `.mcp.json` — bundled MCP connection for Claude Code installs
 - `.codex-plugin/mcp.json` — bundled MCP connection for Codex plugin installs
+- `plugin.json` + `mcp_config.json` — Antigravity (agy) plugin manifest and its
+  bundled MCP connection; the repository root is the installable plugin
 - `docs/superpowers/` — design spec and implementation plan
 
 ## License

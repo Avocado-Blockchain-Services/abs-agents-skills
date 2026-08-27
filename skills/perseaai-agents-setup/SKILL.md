@@ -4,13 +4,15 @@ description: >-
   Use when the user wants to connect a project or repository to the Persea AI
   agents platform, integrate logcore structured logging, register a service or
   repo on the platform, connect their GitHub account to the platform, set up
-  log forwarding (JSON-to-stdout with a Cloud Logging sink, or HTTP for
-  frontends), or onboard a new frontend/backend so the platform can detect its
-  logs. Requires the platform MCP server to be connected.
+  log forwarding (JSON-to-stdout with a Cloud Logging sink for backends inside
+  GCP, or HTTP to the gateway for frontends and for backends hosted anywhere
+  else — a VPS, Hetzner, DigitalOcean, AWS, a PaaS), or onboard a new
+  frontend/backend so the platform can detect its logs. Requires the platform
+  MCP server to be connected.
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.4.0"
+  version: "0.5.0"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
@@ -27,8 +29,9 @@ phases below in order.
 This skill drives tools served by the Persea AI agents platform MCP server:
 `list_organizations`, `check_github_connection`, `get_github_connect_url`,
 `list_projects`, `create_project`, `add_service`, `set_build_commands`,
-`get_service_config`, `get_logging_snippet`, `get_infra_setup`,
-`register_writer_identity`, `validate_setup`, and `register_pr`.
+`set_service_type`, `get_service_config`, `get_logging_snippet`,
+`get_infra_setup`, `register_writer_identity`, `validate_setup`, and
+`register_pr`.
 
 If these tools are not available in the session, the MCP server is not
 connected. Stop and point the user to the installation instructions in this
@@ -60,10 +63,26 @@ when available.
      requirements.txt/pyproject.toml (Python), go.mod (Go), Cargo.toml (Rust)
    - `framework`: check for next.config (Next.js), fastapi in deps (FastAPI),
      express in deps (Express), etc.
-   - `service_type`: WEB_APP_FRONTEND for frontends, BACKEND for anything
-     server-side. The type says how logs reach logcore (gateway vs sink), NOT
-     what the service is written in — the language is its own field, so do not
-     pick a type based on it. PYTHON_BACKEND is the legacy spelling of BACKEND.
+   - `service_type`: **how this service's logs reach logcore**, which is the
+     one thing you cannot detect from the repository. Three values:
+
+     | Value | Where it runs | How logs travel |
+     |---|---|---|
+     | `WEB_APP_FRONTEND` | a browser | HTTP POST to the gateway with an API key |
+     | `BACKEND` | Google Cloud (Cloud Run, GKE, GCE, App Engine) | stdout, collected by a Cloud Logging sink |
+     | `EXTERNAL_BACKEND` | anywhere else — a VPS, Hetzner, DigitalOcean, AWS, Azure, Fly, Render, Railway, on-prem | HTTP POST to the gateway with an API key |
+
+     It does NOT say what the service is written in — the language is its own
+     field, so do not pick a type based on it. `PYTHON_BACKEND` is the legacy
+     spelling of `BACKEND`.
+
+     **Ask the developer where a backend runs**: *"Where does this service run
+     — Google Cloud, or somewhere else?"* You cannot read a deploy target out
+     of source code, and guessing wrong is silent either way. A backend outside
+     GCP filed as `BACKEND` is issued **no API key**, so Phase 3 has nothing to
+     authenticate with and Phase 4 sends the developer to create a sink in a
+     project their service does not run in. The service registers fine and
+     reports nothing, forever.
    - `setup_command` and `test_command`: what a FRESH CLONE of this repo runs
      to install its dependencies, and to run its test suite. **Read them out of
      the project** — `package.json` scripts, pyproject, Makefile, the README's
@@ -107,6 +126,12 @@ when available.
    `already_existed: true` instead of creating a second. **Read that field and
    report it** — "this repo was already registered, reusing it" — rather than
    telling the developer you created something. Retrying the call is safe.
+   - Idempotent means it returns what is already there, **including its
+     `service_type`**. A backend registered before `EXTERNAL_BACKEND` existed
+     comes back as a plain `BACKEND` no matter what you passed, and therefore
+     holds no API key. If the developer says it runs outside GCP, call
+     `set_service_type` with `EXTERNAL_BACKEND` to correct it in place and
+     issue the key — do not proceed down a path the platform did not record.
    - Only the pair is idempotent, not the repo alone: the same repo on two
      branches is a legitimate staging/production pair, and both get their own
      service and their own `service_id`.
@@ -120,9 +145,13 @@ when available.
 ## Phase 3: Code Generation
 
 1. Call `get_service_config` with the service id to get the API key, endpoint,
-   env, and **service_id**.
+   env, **service_id** and **transport**.
 2. Call `get_logging_snippet` with the language, framework, and transport to
-   get the contract. Transport is `stdout` for backends, `http` for frontends.
+   get the contract. **Use the `transport` that `get_service_config` returned**
+   rather than deriving it: `stdout` for a `BACKEND`, `http` for a
+   `WEB_APP_FRONTEND` and for an `EXTERNAL_BACKEND`. So `http` covers both a
+   browser and a backend hosted outside GCP, and the three cases in step 4
+   differ in what they send, not in how they reach us.
    - **The contract is `transport_info.wire_shape` and
      `transport_info.golden_entry`, not the example code.** `wire_shape`
      declares which fields are top-level, which are nested and under which
@@ -284,8 +313,84 @@ when available.
        present — so sending `""` is a **422**, while leaving it out is accepted.
        `get_service_config` returns `null` for it on a frontend: pass that
        through as absent, do not coerce it to an empty string.
-   - For backends (stdout — the sink can only identify the sender by
-     service_id):
+   - For backends running OUTSIDE GCP (http — `EXTERNAL_BACKEND`):
+     There is no sink on that host, so the service ships its own errors. This
+     is the same wire and the same key model as the frontend, but a backend is
+     long-lived and fails in bursts, so the transport itself has rules the
+     browser client does not need. `transport_info.backend_delivery_rules`
+     carries them; they are the contract, not suggestions.
+     - **The service keeps writing stdout exactly as it does today.** HTTP
+       replaces one hop — how an error reaches the platform — and nothing else.
+       The host's own logs stay whole, and only `ERROR` and above leave it.
+     - A logcore client module: POST an envelope to `<endpoint>/v1/logs` with
+       the `x-api-key` header, the same
+       `{"schema_version": 1, "entries": [...]}` wrapper the frontend uses.
+     - **Send no identity fields.** No `service_id` — that is how the sink path
+       names a sender, and this path has no sink. No `source_project` — the
+       process runs in no GCP project, and an empty string is a **422** while
+       absent is accepted. The gateway resolves `repo`, `service_id` and
+       `project_id` from the key and overrides whatever the payload claims,
+       which is also why spoofing them buys nothing.
+     - Entry fields stay FLAT. Nothing is nested under
+       `logging.googleapis.com/*`: that is Cloud Run promotion, and this path
+       never touches Cloud Logging.
+     - **`insert_id` is derived, never random.** Compute it at capture as
+       `sha256(timestamp | service | severity | message | canonical_json(context))`
+       truncated to the first 32 hex chars. A random id passes the format check
+       and still breaks this path specifically: the transport retries, so a
+       batch the server accepted but whose response was lost arrives twice, and
+       only a deterministic id lets logcore recognise the second copy instead of
+       counting the error again. It is also what deduplicates a service that
+       reaches the platform both ways during a migration.
+     - **The transport rules.** A logger that blocks the request path or
+       retries forever is worse than no logging:
+
+       | Rule | What to build |
+       |---|---|
+       | Severity floor | `ERROR` by default, configurable. Below it, nothing is buffered and nothing is sent |
+       | Batching | Flush at 20 buffered entries or every 5s, whichever comes first; at most 200 entries per request |
+       | Never block | Sending happens off the calling thread or task. The log call returns immediately |
+       | Retry | Network error, 5xx, 429 → exponential backoff `2**attempt × 250ms`, up to 3 retries |
+       | Permanent rejection | Any other 4xx is NOT retried. Drop the batch and **echo the server's reason to stderr** — a 400 names the offending field, and without that line a schema mismatch looks exactly like a healthy silent transport |
+       | Buffer cap | 1000 entries; when full, drop the OLDEST |
+       | Circuit breaker | After 10 consecutive failed flushes, stop sending and empty the buffer. A successful flush resets the streak |
+       | Shutdown and crash | Flush on clean exit, and best-effort from the unhandled-exception hook after the crash itself is logged |
+       | Self-exclusion | Expose the transport's own ingest URL so HTTP instrumentation never logs the transport's own failed POST — that is the loop that takes a process down |
+       | Clamps | `message` ≤ 65 536 chars, ≤ 32 labels of ≤ 1 024 chars, ≤ 50 frames. Clamp before sending rather than letting the server reject the batch |
+
+       **Never report the transport's own failures through the logging tree it
+       ships.** It would feed itself: one failed flush logs an error, which
+       buffers, which fails, which logs. stderr, or a callback, and nothing else.
+     - **The trace, on both ends.** Forward `traceparent` on outgoing HTTP
+       calls and bind the incoming one in middleware. Without it a request that
+       crosses three services is three unrelated incidents instead of one — and
+       that correlation is most of what the platform does with a backend error.
+       Install it the same way as any other instrumentation: the framework's
+       extension point first (see the hierarchy in step 4), never at call sites.
+     - An env var example declaring what the module reads. Same names as the
+       frontend uses, minus the bundler prefix — this is server code, and an
+       unprefixed variable is exactly what it needs:
+
+       ```
+       LOGCORE_SERVICE=<the service name>
+       LOGCORE_ENV=<prod|staging|dev|test|local>
+       LOGCORE_URL=<the `endpoint` from get_service_config>
+       LOGCORE_KEY=<the `api_key` from get_service_config>
+       LOGCORE_MIN_SEVERITY=ERROR
+       ```
+
+       **This key is a server secret**, unlike the frontend's, which ships in a
+       bundle by design. It goes in the deployment's environment or its secret
+       manager — never in committed code, and **never** in a browser-prefixed
+       variable: a `VITE_`/`NEXT_PUBLIC_` prefix would ship a server key to
+       every visitor. If `api_key` comes back null the service was registered
+       as a plain `BACKEND`: call `set_service_type` with `EXTERNAL_BACKEND` to
+       issue one, rather than working around it.
+     - **The wiring**: register the middleware, install the crash hooks, and
+       make sure something flushes on exit. A transport nobody calls and a
+       middleware nobody registers report exactly nothing.
+   - For backends running IN GCP (stdout — `BACKEND`, and the sink can only
+     identify the sender by service_id):
      - A structured logger module (JSON to stdout — Cloud Logging captures it)
      - A logging middleware for the framework
      - **The wiring**: register that middleware on the app. Mind the ordering
@@ -306,9 +411,16 @@ when available.
        `env` silently makes every issue record env="unknown".
    - Match the project's code style, directory structure, and conventions.
 
-## Phase 4: GCP Infrastructure (Backend Only)
+## Phase 4: GCP Infrastructure (backends inside GCP only)
 
-Skip this phase for frontend services (http transport).
+Skip this phase for anything delivered through the gateway — every frontend,
+and every `EXTERNAL_BACKEND`. There is no sink to create: those services carry
+their identity in the API key, and `get_infra_setup` says so itself, returning
+`applicable: false` instead of gcloud commands.
+
+Sending the developer of a VPS-hosted service to create a sink is not a wasted
+round trip, it is an impossible one — the commands name a GCP project their
+service does not run in.
 
 1. Ask for the developer's GCP Project ID.
 2. Call `get_infra_setup` with the service id and GCP project id to get the
@@ -352,23 +464,30 @@ verifiable in a language the platform ships no snippet for.
 1. Run the generated logger once and capture ONE emitted line:
    - backends (stdout): execute a small script that imports the module and
      logs an error, then take the line it printed to stdout.
-   - frontends (http): call the module's log function with the network call
-     stubbed, and take the JSON body it would have posted.
+   - anything on the gateway (http) — a frontend, or a backend outside GCP:
+     call the module's log function with the network call stubbed, and take
+     the JSON body it would have posted. For a backend, stub it at the send
+     boundary rather than waiting on the buffer: the transport batches, so a
+     single ERROR may not leave for five seconds.
    If it cannot be executed (no toolchain, no deps installed), say so plainly
    and validate the exact literal your code builds — then tell the developer
    the emitter was not run.
 2. Parse that line and call `validate_setup` with the entry AND the SAME
    transport used in Phase 3. It defaults to "stdout", so omitting it while
-   validating a frontend entry reports failures that do not apply to that
-   path.
+   validating an entry from either gateway path — a frontend, or a backend
+   outside GCP — reports failures that do not apply to it.
 3. Errors mean logcore would reject or misattribute the log; fix the generated
    code and re-run step 1. Warnings mean it is accepted but degraded — read
    them out to the developer with what each one costs, rather than dismissing
    them.
 4. If available, call `test_connection` with the service id for an E2E test.
-   Read its `tested_path` and `covers_production_logs`: for a backend this
-   only exercises the gateway, NOT the sink its real logs travel through, so
-   a green result there does not prove production logs arrive.
+   Read its `tested_path` and `covers_production_logs` rather than assuming
+   what a green result means. It always posts to the gateway, so:
+   - for a frontend, and for a backend outside GCP, that IS the production
+     path and `covers_production_logs` comes back true;
+   - for a backend inside GCP it is not — its real logs travel through the
+     sink, which cannot be exercised from here — so a green result proves the
+     key and the network path, and nothing about production logs arriving.
 5. **Verify the wiring, not just the emitter.** Steps 1-3 prove the module
    PRODUCES a correct entry. They do not prove anything CALLS it — a perfectly
    valid module nobody invokes reports exactly nothing, and that failure is
@@ -421,8 +540,13 @@ Every transport:
 http (frontend): never block navigation or the render path — the request is
 fire-and-forget and survives page unload.
 
-stdout (backend): never emit at import time; one JSON object per line, no
-interleaved partial writes.
+http (backend outside GCP): never send from the calling thread or task, and
+never report the transport's own failures through the logging tree it ships —
+that is the loop that takes a process down. Keep writing stdout as before: the
+host's own logs are not yours to replace.
+
+stdout (backend inside GCP): never emit at import time; one JSON object per
+line, no interleaved partial writes.
 
 ## Critical Rules
 
@@ -445,11 +569,20 @@ interleaved partial writes.
   `<PREFIX>LOGCORE_KEY`. The key alone is not enough: without the URL the client
   has nowhere to post, and without the prefix none of them reach browser code at
   all. Never hardcode the key in source.
-- For backends, no API key is needed in code — Cloud Logging captures stdout
-  automatically — but LOGCORE_SERVICE_ID is required, and it is the one field
-  without which nothing works: logcore discards a sink-delivered log that
-  declares no service_id, because a service NAME is not unique across
-  customers.
+- **For backends, which of the two paths applies is decided by where the
+  service runs, and you cannot read that from the repository — ask.**
+  - Inside GCP, no API key is needed in code — Cloud Logging captures stdout
+    automatically — but LOGCORE_SERVICE_ID is required, and it is the one field
+    without which nothing works: logcore discards a sink-delivered log that
+    declares no service_id, because a service NAME is not unique across
+    customers.
+  - Outside GCP it is the reverse: there is no sink and no service_id to
+    declare, and the API key is what identifies the service. It is a server
+    secret — environment or secret manager, never committed, never in a
+    browser-prefixed variable.
+  - Getting this wrong is silent in both directions. A service that ships to
+    the gateway while registered as SINK holds no key and is rejected; one that
+    writes only stdout on a host with no sink is writing to nobody.
 - At the end, report the wiring you applied — name the files you edited and
   show the diff, so the developer reviews it rather than discovering it.
 - If you could not wire it (unknown framework, build failed and you reverted),

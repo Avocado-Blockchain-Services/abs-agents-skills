@@ -29,7 +29,8 @@ phases below in order.
 This skill drives tools served by the Persea AI agents platform MCP server:
 `list_organizations`, `check_github_connection`, `get_github_connect_url`,
 `list_projects`, `create_project`, `add_service`, `set_build_commands`,
-`set_service_type`, `set_runtime_image`, `get_service_config`, `get_logging_snippet`,
+`set_service_type`, `set_runtime_image`, `get_runtime_image_status`,
+`get_service_config`, `get_logging_snippet`,
 `get_infra_setup`, `register_writer_identity`, `validate_setup`, and
 `register_pr`.
 
@@ -464,7 +465,9 @@ work will silently never happen.
    the work.
 
 6. **Register it** by calling `set_runtime_image` with the service id and
-   `.persea/Dockerfile`. Pass `build_context` only when the Dockerfile is not
+   `.persea/Dockerfile`. Confirm it landed with `get_runtime_image_status`:
+   `dockerfile_path` should now be the path you registered. `built` will be `false`
+   until the platform's first build of it succeeds, which is expected at this point. Pass `build_context` only when the Dockerfile is not
    built from the repository root — a monorepo service, typically. Pass
    `runtime_cpu` and `runtime_memory` only when the build genuinely needs more
    than the default; a compiled Rust or .NET project sometimes does, and most

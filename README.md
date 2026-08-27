@@ -21,16 +21,31 @@ workspace** — they ship the same skill and would double-trigger side by side.
 Skill changes land on `development` first, get dogfooded by the team against
 the dev API, and are promoted to `main` with a version bump.
 
-**Promoting `development` → `main`:** merge, but keep the channel-owned files
-out of the merge — `.claude-plugin/plugin.json` and
-`.codex-plugin/plugin.json` (name/version), `.agents/plugins/marketplace.json`
-(Codex channel), and `.mcp.json` (endpoint) belong to each branch:
+### Development OAuth
 
-```
-git switch main && git merge --no-ff --no-commit development
-git checkout main -- .claude-plugin/ .codex-plugin/ .agents/plugins/ .mcp.json
-# bump the same version in both plugin manifests, then commit
-```
+The development MCP uses a shared public OAuth client: its client ID is public
+and is not a secret. Auth0 is the authorization server. After installing the
+plugin, start a new host session before using the MCP so the host loads its
+configuration and begins a fresh authorization flow.
+
+**Promoting `development` → `main`:** merge, then re-assert the STABLE
+identity inside the channel-owned files while keeping development's shape and
+version. Checking out main's copies wholesale no longer works — the files'
+shapes evolve on `development` (e.g. `.codex-plugin/mcp.json` splitting off in
+0.5.x). The channel identity is three values — plugin/server name
+(`perseaai-agents`, no `-dev`), MCP URL (`agents-api-…`, not
+`agents-api-dev-…`) and OAuth client id (staging `qzjTYaG…`, not dev
+`OwSOkAnm…`) — carried by:
+
+- `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `plugin.json`
+  (name, version, description)
+- `.mcp.json`, `.codex-plugin/mcp.json`, `mcp_config.json` (server key, URL,
+  client id)
+- `tests/test_mcp_configs.py` (the `MCP_NAME` / `MCP_URL` / `CLIENT_ID`
+  constants), plus this README's channel-primary install sections
+
+Run `python -m unittest discover tests` afterwards — the contract tests pin
+each host's exact config shape.
 
 **Testing an unmerged PR branch** needs no channel at all — a marketplace can
 be a local checkout:
@@ -62,8 +77,41 @@ codex plugin marketplace add Avocado-Blockchain-Services/abs-agents-skills
 codex plugin add perseaai-agents@abs-agents-skills
 ```
 
+(Team members testing pre-release content install the dev channel instead:
+`codex plugin marketplace add Avocado-Blockchain-Services/abs-agents-skills --ref development`.)
+
 Start a new Codex session in the repository after installation so it loads the
 bundled MCP server and onboarding skill.
+
+### Antigravity CLI (plugin: tools + skills)
+
+The repository root is also an Antigravity plugin (`plugin.json` +
+`mcp_config.json`). `agy plugin install` takes a local directory; install the
+stable channel from a checkout of `main` (the default branch), or the dev
+channel from a checkout of `development`:
+
+```sh
+git clone git@github.com:Avocado-Blockchain-Services/abs-agents-skills.git
+agy plugin install ./abs-agents-skills
+```
+
+Sign-in uses the same shared public OAuth client through a Google-hosted
+callback page — paste the authorization code back into the CLI. Note that
+Antigravity requests no scopes and Auth0 therefore issues no refresh token:
+expect to re-authenticate about once a day until agy grows a scope
+configuration or the API advertises `scopes_supported`.
+
+`agy plugin install` copies the checkout into `~/.gemini/config/plugins/`, so
+to pick up plugin updates pull the branch and run the install again.
+
+> ⚠️ The git-URL form (`agy plugin install https://github.com/...abs-agents-skills.git`)
+> only ever installs the repository's **default branch** (`main`, the stable
+> channel) — since 0.6.0 main carries the Antigravity manifests, so that form
+> now works for stable. It can never install the dev channel: for that, use a
+> local checkout of `development` as shown above. (On a branch without the
+> manifests agy does not fail — it synthesizes a plugin from the Claude Code
+> files and mangles the HTTP MCP server into a broken empty-stdio entry,
+> verified on agy 1.1.21.)
 
 ### Any other agent (opencode, Cursor, …)
 
@@ -150,7 +198,10 @@ del debugger y PRs esperando review cuando sí los hay.
 - `.claude-plugin/` — Claude Code plugin + self-hosted marketplace manifests
 - `.codex-plugin/` — Codex plugin manifest
 - `.agents/plugins/marketplace.json` — native Codex marketplace catalog
-- `.mcp.json` — bundled MCP connection for Claude Code and Codex plugin installs
+- `.mcp.json` — bundled MCP connection for Claude Code installs
+- `.codex-plugin/mcp.json` — bundled MCP connection for Codex plugin installs
+- `plugin.json` + `mcp_config.json` — Antigravity (agy) plugin manifest and its
+  bundled MCP connection; the repository root is the installable plugin
 - `docs/superpowers/` — design spec and implementation plan
 
 ## License

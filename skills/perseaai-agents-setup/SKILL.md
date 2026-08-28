@@ -12,7 +12,7 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.6.0"
+  version: "0.8.0"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
@@ -27,10 +27,10 @@ phases below in order.
 ## Prerequisites
 
 This skill drives tools served by the Persea AI agents platform MCP server:
-`list_organizations`, `check_github_connection`, `get_github_connect_url`,
-`list_projects`, `create_project`, `add_service`, `set_build_commands`,
-`set_service_type`, `set_runtime_image`, `get_runtime_image_status`,
-`get_service_config`, `get_logging_snippet`,
+`list_organizations`, `list_teams`, `check_github_connection`,
+`get_github_connect_url`, `list_projects`, `create_project`, `add_service`,
+`set_build_commands`, `set_service_type`, `set_runtime_image`,
+`get_runtime_image_status`, `get_service_config`, `get_logging_snippet`,
 `get_infra_setup`, `register_writer_identity`, `validate_setup`, and
 `register_pr`.
 
@@ -114,11 +114,17 @@ when available.
      re-register anything.
    - If no project exists:
      a. Reuse the Persea organization selected in Phase 1.
-     b. Ask for a project name and description.
-     c. Call `create_project` with the selected `organization_id`. Every entry
-        in `services` needs `setup_command` and `test_command` as well — the
-        call is refused if any one of them is missing, and the error names the
-        repo that is short.
+     b. A project lives in a team. Call `list_teams` with that
+        `organization_id`. If it returns more than one, present them and let
+        the developer choose. If it returns exactly one, use it without
+        asking — do not make the developer confirm a choice that has a single
+        option.
+     c. Ask for a project name and description.
+     d. Call `create_project` with the selected `organization_id` and the
+        chosen `team_id`; omitting `team_id` uses the organization's default
+        team. Every entry in `services` needs `setup_command` and
+        `test_command` as well — the call is refused if any one of them is
+        missing, and the error names the repo that is short.
    - If a project exists without this repo, ask: "Add this repo to project
      '{name}'?" If yes, call `add_service` with the project id, repo, branch,
      service type, `setup_command`, `test_command`, and language.

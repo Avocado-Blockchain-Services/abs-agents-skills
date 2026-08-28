@@ -12,7 +12,7 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.5.0"
+  version: "0.6.0"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
@@ -29,7 +29,8 @@ phases below in order.
 This skill drives tools served by the Persea AI agents platform MCP server:
 `list_organizations`, `check_github_connection`, `get_github_connect_url`,
 `list_projects`, `create_project`, `add_service`, `set_build_commands`,
-`set_service_type`, `get_service_config`, `get_logging_snippet`,
+`set_service_type`, `set_runtime_image`, `get_runtime_image_status`,
+`get_service_config`, `get_logging_snippet`,
 `get_infra_setup`, `register_writer_identity`, `validate_setup`, and
 `register_pr`.
 
@@ -410,6 +411,72 @@ when available.
        stays inside jsonPayload where logcore does not read it: a top-level
        `env` silently makes every issue record env="unknown".
    - Match the project's code style, directory structure, and conventions.
+
+## Phase 3b: Runtime image
+
+The debugger runs this service's setup, build and tests inside a container built
+from a Dockerfile in this repository. Without one it cannot run the suite at all,
+so this phase is not optional.
+
+**What the image has to be.** An environment, not an application. It provides the
+project's own toolchain — compiler, package manager, test runner — and a POSIX
+shell at `/bin/sh`. Nothing else is required: it does not need to know about
+Persea, and it never runs its own `ENTRYPOINT` or `CMD`. Tell the developer this
+explicitly if their Dockerfile does setup work in an entrypoint, because that
+work will silently never happen.
+
+1. **Read the repository and determine the real stack.** The language, the
+   version it pins, the package manager, any system libraries the build needs.
+   Do not guess from the file extensions alone — a `pyproject.toml` with a
+   `[tool.poetry]` section and one with `[project]` install differently.
+
+2. **Write `.persea/Dockerfile`.**
+
+   - Pin the base image by tag or digest, never `latest`. An image that changes
+     under the service turns a passing suite red for reasons nobody changed.
+   - Order the layers so the toolchain installs before the dependencies: the
+     dependencies change far more often, and this is what makes a rebuild cheap.
+   - `WORKDIR /workspace`. The repository is mounted there at run time.
+   - No secrets, no credentials, no tokens. This image is built by the platform
+     and stored; anything baked into it is stored with it.
+   - No `curl … | sh` from an unpinned source. If a tool has no package, fetch a
+     pinned release and verify it.
+   - Do not `COPY` the source. The code arrives through the mounted workspace, and
+     copying it in would make every commit invalidate the image.
+
+3. **Build it locally and prove it works.**
+
+   ```bash
+   docker build -f .persea/Dockerfile -t persea-runtime-check .
+   docker run --rm -v "$PWD:/workspace" -w /workspace persea-runtime-check \
+     sh -c '<setup_command>'
+   docker run --rm -v "$PWD:/workspace" -w /workspace persea-runtime-check \
+     sh -c '<test_command>'
+   ```
+
+   Both must succeed. A Dockerfile that has never been built is a guess, and the
+   first place it would fail is a real customer run.
+
+4. **Audit it before committing.** Read it once more against the rules above —
+   pinned base, no secrets, no unpinned downloads, no copied source. You are
+   about to commit an environment that will execute this repository's code.
+
+5. **Commit `.persea/Dockerfile`** on the integration branch alongside the rest of
+   the work.
+
+6. **Register it** by calling `set_runtime_image` with the service id and
+   `.persea/Dockerfile`. Confirm it landed with `get_runtime_image_status`:
+   `dockerfile_path` should now be the path you registered. `built` will be `false`
+   until the platform's first build of it succeeds, which is expected at this point. Pass `build_context` only when the Dockerfile is not
+   built from the repository root — a monorepo service, typically. Pass
+   `runtime_cpu` and `runtime_memory` only when the build genuinely needs more
+   than the default; a compiled Rust or .NET project sometimes does, and most
+   projects do not.
+
+**If the developer already has a Dockerfile** that satisfies the rules above, use
+it: point `set_runtime_image` at its path instead of writing a second one. A
+production image usually will not fit — it tends to be a slim runtime without the
+test runner or the compiler — but check rather than assume.
 
 ## Phase 4: GCP Infrastructure (backends inside GCP only)
 

@@ -9,7 +9,7 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.1.1"
+  version: "0.2.0"
 ---
 
 <!-- The counters come from persea-agents-api:src/services/stats_service.py
@@ -26,8 +26,8 @@ doing?* Which one gets answered is decided from the data, not by asking.
 ## Prerequisites
 
 This skill drives tools served by the Persea AI agents platform MCP server:
-`list_projects`, `get_project_status`, `get_project_issue`, and
-`list_debugger_runs`.
+`list_projects`, `get_project_status`, `get_project_issue`,
+`list_debugger_runs`, and `get_runtime_image_status`.
 
 If these tools are not available in the session, the MCP server is not
 connected. Stop and point the user to the installation instructions in this
@@ -80,6 +80,9 @@ becomes noise.
 | 10 | `stats.debugger` is `null` | **Off, not broken** | Same as row 8 |
 | 11 | `classified > 0`, `approved: 0`, `needs_attention: 0` | May be legitimate: the debugger skips `complex` issues | Call `list_debugger_runs` to confirm whether any run happened at all |
 | 12 | `needs_attention > 0` | Runs ended without a fix | Call `list_debugger_runs` and read `termination_reason` |
+| 13 | A run's reason mentions the environment or the runtime image | The debugger could not build the container it runs the tests in, so the tests never ran | Call `get_runtime_image_status`. Read `dockerfile_path` and `built` before anything else |
+| 14 | `get_runtime_image_status` returns `dockerfile_path: null` | The service has not been migrated: it still runs in the platform's own image, which only works for Python | Hand back to `perseaai-agents-setup` to add a Dockerfile |
+| 15 | `dockerfile_path` set, `built: false` | No image has ever been produced from it | The Dockerfile is committed but its first build has not succeeded. Ask the developer to build it locally exactly as Phase 3b does — that reproduces the failure in seconds instead of one run at a time |
 
 **Rows 2 and 3 apply only to a `BACKEND`** — the one type that is delivered
 through a Cloud Logging sink. A `WEB_APP_FRONTEND` posts to the gateway over
@@ -112,6 +115,16 @@ for what the debugger has been doing.
 **`awaiting_review` is the actionable number, not a statistic.** Those are pull
 requests the debugger opened that are waiting on a human. End the report
 pointing there, not at whichever number is largest.
+
+## A run that never ran
+
+A run whose runtime image could not be built reports a failure like any other, and it
+is easy to read as "the agent tried and could not fix it". It is not: **the tests never
+ran at all**. Nothing about the customer's code has been evaluated, and the fix is to
+their Dockerfile rather than to their bug.
+
+Row 13 exists so that distinction is not lost. When a reason names the environment,
+diagnose the image before diagnosing the fix.
 
 ## Three traps
 

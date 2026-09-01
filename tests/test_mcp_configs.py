@@ -129,19 +129,25 @@ class McpConfigurationContractTests(unittest.TestCase):
         self.assertEqual(manifest["name"], MCP_NAME)
         self.assertTrue(manifest["description"])
 
-    def test_plugin_manifests_reference_the_expected_mcp_configs_at_version_060(self) -> None:
+    def test_plugin_manifests_reference_the_expected_mcp_configs_at_version_0102(self) -> None:
         # The version is the plugin cache key: Claude Code stores an installed
         # build under `cache/<marketplace>/<plugin>/<version>/` and reuses it
         # rather than re-copying. Shipping a config fix without bumping this
         # leaves every existing install on the old build, which is how the
         # broken 0.5.0 kept coming back after the source was already correct.
+        #
+        # Las tres se afirman contra el MISMO literal porque el README manda
+        # subirlas juntas. Este test estuvo en rojo desde que .claude-plugin
+        # pasó a 0.7.0 en solitario: los otros dos se quedaron en 0.6.0 y nadie
+        # lo miró. Si vuelve a fallar, la respuesta es alinear los manifiestos,
+        # no aflojar la aserción.
         claude_manifest = load_json(".claude-plugin/plugin.json")
         codex_manifest = load_json(".codex-plugin/plugin.json")
         antigravity_manifest = load_json("plugin.json")
 
-        self.assertEqual(claude_manifest["version"], "0.6.0")
-        self.assertEqual(codex_manifest["version"], "0.6.0")
-        self.assertEqual(antigravity_manifest["version"], "0.6.0")
+        self.assertEqual(claude_manifest["version"], "0.10.2")
+        self.assertEqual(codex_manifest["version"], "0.10.2")
+        self.assertEqual(antigravity_manifest["version"], "0.10.2")
         self.assertEqual(codex_manifest["mcpServers"], "./.codex-plugin/mcp.json")
 
 

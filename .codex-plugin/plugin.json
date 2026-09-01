@@ -1,6 +1,6 @@
 {
   "name": "perseaai-agents",
-  "version": "0.8.0",
+  "version": "0.10.0",
   "description": "Onboard projects onto the Persea AI agents platform and monitor their pipeline: connect GitHub, register services, integrate logcore structured logging for backends inside GCP and outside it, and check logs, classifier verdicts and debugger runs.",
   "author": {
     "name": "Avocado Blockchain Services",

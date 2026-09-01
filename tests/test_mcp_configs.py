@@ -129,7 +129,7 @@ class McpConfigurationContractTests(unittest.TestCase):
         self.assertEqual(manifest["name"], MCP_NAME)
         self.assertTrue(manifest["description"])
 
-    def test_plugin_manifests_reference_the_expected_mcp_configs_at_version_080(self) -> None:
+    def test_plugin_manifests_reference_the_expected_mcp_configs_at_version_0100(self) -> None:
         # The version is the plugin cache key: Claude Code stores an installed
         # build under `cache/<marketplace>/<plugin>/<version>/` and reuses it
         # rather than re-copying. Shipping a config fix without bumping this
@@ -145,9 +145,9 @@ class McpConfigurationContractTests(unittest.TestCase):
         codex_manifest = load_json(".codex-plugin/plugin.json")
         antigravity_manifest = load_json("plugin.json")
 
-        self.assertEqual(claude_manifest["version"], "0.8.0")
-        self.assertEqual(codex_manifest["version"], "0.8.0")
-        self.assertEqual(antigravity_manifest["version"], "0.8.0")
+        self.assertEqual(claude_manifest["version"], "0.10.0")
+        self.assertEqual(codex_manifest["version"], "0.10.0")
+        self.assertEqual(antigravity_manifest["version"], "0.10.0")
         self.assertEqual(codex_manifest["mcpServers"], "./.codex-plugin/mcp.json")
 
 

@@ -12,7 +12,7 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.8.0"
+  version: "0.10.0"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
@@ -32,7 +32,7 @@ This skill drives tools served by the Persea AI agents platform MCP server:
 `set_build_commands`, `set_service_type`, `set_runtime_image`,
 `get_runtime_image_status`, `get_service_config`, `get_logging_snippet`,
 `get_infra_setup`, `register_writer_identity`, `validate_setup`, and
-`register_pr`.
+`register_pr`, `get_project_status`, and `set_project_agent_modules`.
 
 If these tools are not available in the session, the MCP server is not
 connected. Stop and point the user to the installation instructions in this
@@ -231,43 +231,51 @@ when available.
      from these frames, and on a backend the failure is silent: the log is
      accepted and grouped, and the emission to the classifier dies afterwards.
      The error never reaches anyone.
-3. Read the project's existing code to understand its patterns and style.
-   Locate the extension points you will register with: the entry point, the
-   shared HTTP client instance, the middleware chain. You need to know where
-   they are before you generate anything.
-4. Put the integration LOGIC in new files. You may EDIT existing files, but
-   only to register with an extension point — never to restructure what is
-   there. Follow this hierarchy, stopping at the first rung that applies:
-   a. **Use the extension point the library already provides.** axios exposes
-      `interceptors`, Angular has `HttpInterceptor`, Express and FastAPI have
-      middleware, Django has middleware. When one exists the edit is ONE line
-      at the place the client or app is constructed, and no call site changes.
-   b. **If there is none, install from a new module.** `fetch` has no
-      interceptor. Patch it from a new file, install it explicitly from the
-      entry point, and return an uninstall function. One global effect,
-      localized and reversible — or skip HTTP instrumentation entirely and
-      rely on the global handlers, which already catch failures that
-      propagate.
-   c. **Never invent an abstraction.** Do NOT introduce a wrapper, a `request`
-      helper, a base client, or any layer that forces call sites to be
-      rewritten. Rewriting how the project makes its calls is not integration,
-      it is a refactor the developer did not ask for. If instrumenting a call
-      path would require touching call sites, do not instrument it — say so
-      instead.
-   The generated code itself is:
+   - **Attempt parsed stack capture for every `ERROR+` record without changing
+     call sites.** Use the exception/throwable stack when the logger provides
+     one; otherwise use caller/source information only when the language can
+     expose it from the adapter boundary. Never manufacture a traceback from
+     the adapter itself. An event without frames is still a valid event and
+     Logcore falls back to message-based grouping.
+   - Do not drop events whose stack includes framework or dependency frames.
+     Preserve those frames with `inApp: false`; application frames stay
+     `inApp: true` and are the signal Logcore uses for grouping.
+3. **The existing logger is the integration boundary.** Before generating code,
+   identify the logger actually used by the project, its backend and extension
+   points (handlers, hooks, appenders, sinks, middleware or global output
+   configuration). Read its current destinations, levels, formatter, propagation
+   and redaction behavior. Do not install a Persea package and do not create a
+   second logger API that application code would have to call.
+4. Attach one transport adapter to that logger. It must forward every `ERROR`
+   and higher event through the service's configured transport without changing
+   existing call sites. Preserve existing output, handlers/hooks, levels,
+   propagation, formatting and redaction.
+   a. **Use the logger's native extension point first.** Add one handler, hook,
+      appender, sink or middleware beside what already exists. This is the normal
+      path: it remains local, reversible, and catches future errors without any
+      developer action.
+   b. **Use the backend's configuration second.** A facade may not expose the
+      needed hook while its concrete backend does. Adapt the backend rather than
+      replacing the facade or application logger.
+   c. **Reconfigure global output only as a last resort.** When a language or
+      logger has no extension point, preserve every existing destination and
+      behavior while adding the adapter. Treat concurrent writes, output format,
+      propagation and existing hooks as compatibility requirements. Keep the
+      change localized and reversible.
+   d. **Never invent an abstraction or rewrite call sites.** Do NOT introduce a
+      wrapper, a `request` helper, a base client, or a new `perseaLog` API. If
+      a safe global integration is impossible, keep investigating the logger's
+      actual backend; do not report onboarding complete until it is wired.
+   The adapter code itself is:
    - For frontends (http — the gateway resolves identity from the API key):
-     - A logcore client module (HTTP POST to the logcore endpoint with an
-       `x-api-key` header)
-     - **The client has to be able to emit WITHOUT an exception**, and to carry
-       `labels`, `context` and `fingerprint` — every one of them a valid entry
-       field on this transport. A client whose only entry point takes an `Error`
-       covers exactly the failures that throw, and the ones that hurt most do
-       not: a bug that computes the wrong value raises nothing, so no global
-       handler and no error boundary can ever see it. The app itself is the only
-       thing positioned to report it, and it needs a call to make. Shape it as
-       `log(severity, message, {error, context, labels, fingerprint})` with a
-       thin `logError` on top, or as whatever the project's naming calls for —
-       the wire format is the contract, the function names are not.
+     - An HTTP transport adapter attached to the existing logger (POST to the
+       logcore endpoint with an `x-api-key` header). It forwards existing
+       `ERROR+` records; do not require a new application logging function.
+     - Preserve the logger's labels and context when they already exist.
+       **Do not calculate or hardcode an automatic `fingerprint`.** Logcore
+       calculates it from the service identity, error and parsed frames. Pass a
+       fingerprint only when the project intentionally already supplied a
+       manual override.
      - An error boundary or global error handler (window.onerror,
        unhandledrejection)
      - An env var example (.env.example or similar) with **all three** variables
@@ -329,8 +337,8 @@ when available.
      - **The service keeps writing stdout exactly as it does today.** HTTP
        replaces one hop — how an error reaches the platform — and nothing else.
        The host's own logs stay whole, and only `ERROR` and above leave it.
-     - A logcore client module: POST an envelope to `<endpoint>/v1/logs` with
-       the `x-api-key` header, the same
+     - An HTTP transport adapter attached to the existing logger: POST an
+       envelope to `<endpoint>/v1/logs` with the `x-api-key` header, the same
        `{"schema_version": 1, "entries": [...]}` wrapper the frontend uses.
      - **Send no identity fields.** No `service_id` — that is how the sink path
        names a sender, and this path has no sink. No `source_project` — the
@@ -398,7 +406,9 @@ when available.
        middleware nobody registers report exactly nothing.
    - For backends running IN GCP (stdout — `BACKEND`, and the sink can only
      identify the sender by service_id):
-     - A structured logger module (JSON to stdout — Cloud Logging captures it)
+     - A handler/formatter adapter on the existing logger that emits the
+       required JSON to stdout — Cloud Logging captures it. Do not replace the
+       logger or its existing stdout/stderr behavior.
      - A logging middleware for the framework
      - **The wiring**: register that middleware on the app. Mind the ordering
        semantics of the framework — Express error middleware goes last and
@@ -553,21 +563,36 @@ verifiable in a language the platform ships no snippet for.
    code and re-run step 1. Warnings mean it is accepted but degraded — read
    them out to the developer with what each one costs, rather than dismissing
    them.
-4. If available, call `test_connection` with the service id for an E2E test.
-   Read its `tested_path` and `covers_production_logs` rather than assuming
-   what a green result means. It always posts to the gateway, so:
+4. Before sending any E2E probe, ask the developer whether they want to run it.
+   Explain that it sends an intentional error through the real pipeline. Offer
+   to pause the classifier and debugger for the short test so the artificial
+   event does not consume agent tokens, start a debugger run, or open a PR.
+   Do not pause modules and do not send the probe without explicit approval.
+   - If the developer declines, skip the E2E probe. Report that the emitter and
+     wiring were validated locally, but production delivery was not exercised.
+   - If the developer approves:
+     1. Call `get_project_status` and record the current
+        `module_flags.classifier_enabled` and `module_flags.debugger_enabled`.
+     2. Call `set_project_agent_modules` with both values `false`.
+     3. Call `test_connection` with the service id for the E2E probe.
+     4. **Always restore the exact two recorded values** by calling
+        `set_project_agent_modules`, even when the probe fails. Do this before
+        reporting the failure; never leave a customer's agents paused.
+5. When the E2E probe was approved, read its `tested_path` and
+   `covers_production_logs` rather than assuming what a green result means. It
+   always posts to the gateway, so:
    - for a frontend, and for a backend outside GCP, that IS the production
      path and `covers_production_logs` comes back true;
    - for a backend inside GCP it is not — its real logs travel through the
      sink, which cannot be exercised from here — so a green result proves the
      key and the network path, and nothing about production logs arriving.
-5. **Verify the wiring, not just the emitter.** Steps 1-3 prove the module
+6. **Verify the wiring, not just the emitter.** Steps 1-3 prove the module
    PRODUCES a correct entry. They do not prove anything CALLS it — a perfectly
    valid module nobody invokes reports exactly nothing, and that failure is
    silent. So also confirm the registration is real: the entry point imports
    and calls the installer, the boundary wraps the component tree, the
    middleware sits in the chain.
-6. **Run the project's own build and tests after editing** (`npm run build`,
+7. **Run the project's own build and tests after editing** (`npm run build`,
    `pytest`, `go build`, whatever the repo uses). Adding a file is inert if it
    is wrong; editing an entry point is not — a bad edit breaks the app instead
    of merely failing to log.
@@ -599,6 +624,8 @@ Every transport:
 - Logging must never break the app. Swallow transport failures; never
   propagate an exception or block the user's flow because a log could not be
   delivered.
+- Forward every existing logger event at `ERROR` severity or higher. Do not
+  require future application code to call a Persea-specific logging API.
 - Add NO new runtime dependencies. Use what the project already has.
 - The module must be exercisable with the transport stubbed — no network, no
   credentials. Phase 5 depends on this; an untestable module cannot be

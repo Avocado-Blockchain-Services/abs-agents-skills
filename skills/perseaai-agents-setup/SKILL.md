@@ -12,7 +12,7 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.10.1"
+  version: "0.10.2"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
@@ -84,10 +84,10 @@ when available.
      authenticate with and Phase 4 sends the developer to create a sink in a
      project their service does not run in. The service registers fine and
      reports nothing, forever.
-   - `setup_command` and `test_command`: what a FRESH CLONE of this repo runs
-     to install its dependencies, and to run its test suite. **Read them out of
-     the project** — `package.json` scripts, pyproject, Makefile, the README's
-     own instructions — rather than assuming. Common pairs:
+   - Whether `setup_command`, `test_command`, and a suitable Dockerfile already
+     exist. Inspect `package.json` scripts, pyproject, Makefile, README and existing
+     Dockerfiles, but do not create or register any of them yet. Never invent a
+     missing command. Common command pairs include:
 
      | project | `setup_command` | `test_command` |
      |---|---|---|
@@ -98,20 +98,24 @@ when available.
      | pip | `pip install -r requirements.txt` | `pytest` |
      | go | `go mod download` | `go test ./...` |
 
-     Both are **required** to register a service, and this is not paperwork.
-     The debugger clones the repo, installs it, reproduces the bug and verifies
-     its own fix — so a service without them registers fine and is then skipped
-     with "has no branch/setup/test command configured", minutes later, in a job
-     the developer never sees. If the repo genuinely has no test script, say so
-     and agree a command with the developer instead of inventing one that will
-     fail on first use.
-2. Call `list_projects` to check if a project already exists for this repo.
-   - If a project exists with this repo, use it and skip to Phase 3 — but first
-     confirm the service still has both build commands. A service registered
-     before they were required has neither, and the debugger skips it in
-     silence. Call `set_build_commands` with the `service_id` and the pair you
-     detected; it fixes the service in place, so there is no need to delete and
-     re-register anything.
+2. Ask exactly once: **"Would you like me to configure the optional debugger
+   test environment now (setup command, test command, and Dockerfile)? If you
+   skip it, debugger runs still proceed using the standing agent job; automated
+   tests are best effort and the PR will warn when they were not verified."**
+   - Continue only after the user answers. Do not infer consent from the request
+     to onboard the project.
+   - If the answer is no, record the choice for this run, omit setup/test values,
+     skip Phase 3b completely, and continue onboarding. This is a supported and
+     complete setup.
+   - If the answer is yes but either command cannot be established from the repo,
+     explain what is missing, leave the whole optional environment unconfigured,
+     skip Phase 3b, and continue. Do not create a test script or guess a command.
+   - Only an affirmative answer with both commands available authorizes calling
+     `set_build_commands`, creating a Dockerfile, or calling `set_runtime_image`.
+3. Call `list_projects` to check if a project already exists for this repo.
+   - If a project exists with this repo, use it and skip to Phase 3. Missing
+     build commands are supported. Call `set_build_commands` only if the user
+     opted in during step 2 and both commands were found.
    - If no project exists:
      a. Reuse the Persea organization selected in Phase 1.
      b. A project lives in a team. Call `list_teams` with that
@@ -122,13 +126,12 @@ when available.
      c. Ask for a project name and description.
      d. Call `create_project` with the selected `organization_id` and the
         chosen `team_id`; omitting `team_id` uses the organization's default
-        team. Every entry in `services` needs `setup_command` and
-        `test_command` as well — the call is refused if any one of them is
-        missing, and the error names the repo that is short.
+        team. Include `setup_command` and `test_command` only when the user opted
+        in and both were found; otherwise omit them.
    - If a project exists without this repo, ask: "Add this repo to project
      '{name}'?" If yes, call `add_service` with the project id, repo, branch,
-     service type, `setup_command`, `test_command`, and language.
-3. `add_service` is idempotent on `(repo_full_name, branch)`. When a service for
+     service type and language. Include setup/test only after opt-in.
+4. `add_service` is idempotent on `(repo_full_name, branch)`. When a service for
    that pair already exists it returns the existing one with
    `already_existed: true` instead of creating a second. **Read that field and
    report it** — "this repo was already registered, reusing it" — rather than
@@ -146,7 +149,7 @@ when available.
      the one already registered creates a SECOND service for the same repo,
      which is how a project ends up with two entries that look identical in the
      UI but carry different ids.
-4. Ask: "What is your target branch for PRs?" (suggest the detected default
+5. Ask: "What is your target branch for PRs?" (suggest the detected default
    branch)
 
 ## Phase 3: Code Generation
@@ -436,11 +439,16 @@ when available.
        `env` silently makes every issue record env="unknown".
    - Match the project's code style, directory structure, and conventions.
 
-## Phase 3b: Runtime image
+## Phase 3b: Optional debugger test environment
 
-The debugger runs this service's setup, build and tests inside a container built
-from a Dockerfile in this repository. Without one it cannot run the suite at all,
-so this phase is not optional.
+Enter this phase **only** when the developer explicitly opted in during Phase 2
+and both setup/test commands were found. Otherwise skip directly to Phase 4.
+Never reinterpret general onboarding approval as approval for this phase.
+
+When configured, the debugger runs setup and tests inside a container built from
+a Dockerfile in this repository. Without this optional bundle, the debugger uses
+the standing single-container agent job; the fix run continues, automated tests
+are best effort, and the PR states when they were unavailable.
 
 **What the image has to be.** An environment, not an application. It provides the
 project's own toolchain — compiler, package manager, test runner — and a POSIX

@@ -12,7 +12,7 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.10.0"
+  version: "0.10.1"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
@@ -170,6 +170,14 @@ when available.
      this language: that is expected, not a blocker. Do NOT improvise the wire
      format and do NOT fall back to another language's transport — build from
      `wire_shape`.
+   - The public documentation and multi-language examples live at
+     https://github.com/Avocado-Blockchain-Services/persea-agents-docs. Consult
+     it for high-level concepts, native logger extension points, and examples
+     for Python, TypeScript, JavaScript/browser, React, Next.js, PHP, Go, and
+     ASP.NET Core. It is public and deliberately contains no customer values,
+     API keys, endpoints, or private-project details. It complements the MCP;
+     the current `wire_shape`, `golden_entry`, and `validate_setup` response
+     always take precedence when their details differ.
    - Its `required_fields` is transport-aware: obey it exactly. The two paths
      identify the sender differently, and getting it wrong is silent.
    - **`field_patterns` and `field_enums` are the formats the gateway enforces.**

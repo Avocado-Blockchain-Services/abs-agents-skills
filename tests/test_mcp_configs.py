@@ -145,9 +145,9 @@ class McpConfigurationContractTests(unittest.TestCase):
         codex_manifest = load_json(".codex-plugin/plugin.json")
         antigravity_manifest = load_json("plugin.json")
 
-        self.assertEqual(claude_manifest["version"], "0.10.0")
-        self.assertEqual(codex_manifest["version"], "0.10.0")
-        self.assertEqual(antigravity_manifest["version"], "0.10.0")
+        self.assertEqual(claude_manifest["version"], "0.10.1")
+        self.assertEqual(codex_manifest["version"], "0.10.1")
+        self.assertEqual(antigravity_manifest["version"], "0.10.1")
         self.assertEqual(codex_manifest["mcpServers"], "./.codex-plugin/mcp.json")
 
 

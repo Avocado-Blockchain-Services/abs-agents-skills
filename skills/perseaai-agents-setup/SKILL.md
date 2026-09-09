@@ -52,9 +52,18 @@ Two consequences worth knowing before they surprise you:
 
 - **`list_projects` shows what the developer can reach, not everything the
   organization has.** An empty result means "none you can see", which is not
-  the same as "none exists". If the developer expects a project that does not
-  appear, do NOT create a second one with the same repo: say that it may exist
-  in a team they are not part of, and that an owner or admin can add them.
+  the same as "none exists".
+
+  Creating a project for a repo that is already registered fails with a 409,
+  `REPOSITORY_CLAIMED`: "Repository 'org/repo' is already linked to another
+  project". The platform never lets two projects claim the same repository, so
+  the risk is not a duplicate — it is a dead end. The developer sees no
+  project, asks you to create one, and gets an error about a project they
+  cannot see, which reads like a broken system.
+
+  When that 409 appears, say what it means: the repo belongs to a project in a
+  team they are not part of, and an owner or admin can add them to it. Do not
+  retry with another name — the claim is on the repository, not on the name.
 - **`Project not found` / `Access denied` on a project that clearly exists**
   means the developer is not in its team, or is in it as *Solo lectura*
   (viewer). Creating things is not the fix — ask for team access. `Solo

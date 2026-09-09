@@ -1,6 +1,6 @@
 {
   "$schema": "https://antigravity.google/schemas/v1/plugin.json",
   "name": "perseaai-agents-dev",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Onboard projects onto the Persea AI agents platform and monitor their pipeline: connect GitHub, register services, integrate logcore structured logging for backends inside GCP and outside it, and check logs, classifier verdicts and debugger runs (canal de desarrollo — API dev)."
 }

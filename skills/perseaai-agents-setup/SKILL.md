@@ -42,6 +42,29 @@ before continuing.
 The optional tool `test_connection` may also be present; Phase 5 uses it only
 when available.
 
+### These tools are scoped by team
+
+A project belongs to a team, and the tools only show and touch the projects of
+teams the developer belongs to — the same rule the web app applies. The owner
+of an organization sees all of its projects without belonging to any team.
+
+Two consequences worth knowing before they surprise you:
+
+- **`list_projects` shows what the developer can reach, not everything the
+  organization has.** An empty result means "none you can see", which is not
+  the same as "none exists". If the developer expects a project that does not
+  appear, do NOT create a second one with the same repo: say that it may exist
+  in a team they are not part of, and that an owner or admin can add them.
+- **`Project not found` / `Access denied` on a project that clearly exists**
+  means the developer is not in its team, or is in it as *Solo lectura*
+  (viewer). Creating things is not the fix — ask for team access. `Solo
+  lectura` can read a project but cannot add services or change their
+  configuration, and `get_service_config` returns `api_key: null` for them.
+
+If a tool answers that the organization is not enabled, it has not been
+approved yet: nothing can be created in it until then. Say so plainly instead
+of retrying.
+
 ## Phase 1: GitHub Connection
 
 1. Call `list_organizations` before checking GitHub. If several Persea

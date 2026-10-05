@@ -42,6 +42,38 @@ before continuing.
 The optional tool `test_connection` may also be present; Phase 5 uses it only
 when available.
 
+### These tools are scoped by team
+
+A project belongs to a team, and the tools only show and touch the projects of
+teams the developer belongs to — the same rule the web app applies. The owner
+of an organization sees all of its projects without belonging to any team.
+
+Two consequences worth knowing before they surprise you:
+
+- **`list_projects` shows what the developer can reach, not everything the
+  organization has.** An empty result means "none you can see", which is not
+  the same as "none exists".
+
+  Creating a project for a repo that is already registered fails with a 409,
+  `REPOSITORY_CLAIMED`: "Repository 'org/repo' is already linked to another
+  project". The platform never lets two projects claim the same repository, so
+  the risk is not a duplicate — it is a dead end. The developer sees no
+  project, asks you to create one, and gets an error about a project they
+  cannot see, which reads like a broken system.
+
+  When that 409 appears, say what it means: the repo belongs to a project in a
+  team they are not part of, and an owner or admin can add them to it. Do not
+  retry with another name — the claim is on the repository, not on the name.
+- **`Project not found` / `Access denied` on a project that clearly exists**
+  means the developer is not in its team, or is in it as *Solo lectura*
+  (viewer). Creating things is not the fix — ask for team access. `Solo
+  lectura` can read a project but cannot add services or change their
+  configuration, and `get_service_config` returns `api_key: null` for them.
+
+If a tool answers that the organization is not enabled, it has not been
+approved yet: nothing can be created in it until then. Say so plainly instead
+of retrying.
+
 ## Phase 1: GitHub Connection
 
 1. Call `list_organizations` before checking GitHub. If several Persea

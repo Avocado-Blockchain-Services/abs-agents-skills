@@ -39,6 +39,11 @@ module. When the fix is a setup step, hand back to `perseaai-agents-setup`.
 
 ## Phase 0: Identify the project
 
+> `list_projects` only returns the projects of teams the developer belongs to
+> (an organization owner sees all). An empty result means "none you can see",
+> not "none exists", and `Project not found` on a project that exists means
+> they are not in its team.
+
 1. Call `list_projects`.
 2. Read the local remote with `git remote -v` and match it against each
    service's `repo_full_name`.

@@ -14,7 +14,7 @@
     {
       "name": "perseaai-agents-dev",
       "source": {
-        "source": "git",
+        "source": "url",
         "url": "https://github.com/Avocado-Blockchain-Services/abs-agents-skills.git",
         "ref": "development"
       },

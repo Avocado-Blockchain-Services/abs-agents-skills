@@ -12,7 +12,7 @@ description: >-
 license: Apache-2.0
 metadata:
   author: Avocado Blockchain Services
-  version: "0.10.2"
+  version: "0.12.0"
 ---
 
 <!-- Content adapted from persea-agents-api:src/mcp/prompts/logcore_setup.py
@@ -27,11 +27,11 @@ phases below in order.
 ## Prerequisites
 
 This skill drives tools served by the Persea AI agents platform MCP server:
-`list_organizations`, `list_teams`, `check_github_connection`,
-`get_github_connect_url`, `list_projects`, `create_project`, `add_service`,
-`set_build_commands`, `set_service_type`, `set_runtime_image`,
-`get_runtime_image_status`, `get_service_config`, `get_logging_snippet`,
-`get_infra_setup`, `register_writer_identity`, `validate_setup`, and
+`list_organizations`, `check_github_connection`, `get_github_connect_url`,
+`list_projects`, `create_project`, `add_service`, `set_build_commands`,
+`set_service_type`, `set_runtime_image`, `get_runtime_image_status`,
+`get_service_config`, `get_logging_snippet`, `get_infra_setup`,
+`register_writer_identity`, `validate_setup`, and
 `register_pr`, `get_project_status`, and `set_project_agent_modules`.
 
 If these tools are not available in the session, the MCP server is not
@@ -150,16 +150,18 @@ of retrying.
      opted in during step 2 and both commands were found.
    - If no project exists:
      a. Reuse the Persea organization selected in Phase 1.
-     b. A project lives in a team. Call `list_teams` with that
-        `organization_id`. If it returns more than one, present them and let
-        the developer choose. If it returns exactly one, use it without
-        asking — do not make the developer confirm a choice that has a single
-        option.
-     c. Ask for a project name and description.
-     d. Call `create_project` with the selected `organization_id` and the
-        chosen `team_id`; omitting `team_id` uses the organization's default
-        team. Include `setup_command` and `test_command` only when the user opted
-        in and both were found; otherwise omit them.
+     b. Ask for a project name and description.
+     c. Call `create_project` with the selected `organization_id` and without
+        `team_id`. Each project gets its own team, created automatically with
+        the project — the same thing the web app does, where nobody ever picks
+        a team. Never pass `team_id`, never look teams up to offer a choice,
+        and never ask the developer which team to use, even though the tool
+        still accepts the parameter and its description may mention a default
+        team. An existing team already belongs to another project, and members
+        are managed per team: put two projects in one team and adding a person
+        to one silently gives them the other. Include `setup_command` and
+        `test_command` only when the user opted in and both were found;
+        otherwise omit them.
    - If a project exists without this repo, ask: "Add this repo to project
      '{name}'?" If yes, call `add_service` with the project id, repo, branch,
      service type and language. Include setup/test only after opt-in.
